@@ -1,8 +1,8 @@
-# 乡音心伴｜前端接口对接文档
+# 乡音心伴：Supabase API MVP
 
-> 读者：前端开发同学。本文说明如何连接后端、调用接口、处理登录态和错误。无需直接访问 Supabase 数据库。
+> 本文说明如何连接后端、调用接口、处理登录态和错误。无需直接访问 Supabase 数据库。
 >
-> 当前版本：Supabase Edge Function API（竞赛演示 / MVP）。接口以部署中的 `api` Function 为准；若后端实现更新，请同步更新本文。
+> 当前版本：Supabase Edge Function API（竞赛演示 / MVP）。接口以部署中的 `api` Function 为准；后端实现更新，将同步更新本文。
 
 ## 1. 接口地址与环境变量
 
