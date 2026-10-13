@@ -1,5 +1,6 @@
 # 日志文件
 *.log
+*.temp/
 
 # 依赖包目录
 node_modules/

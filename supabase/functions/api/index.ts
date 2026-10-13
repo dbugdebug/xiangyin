@@ -1,10 +1,11 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import type { SupabaseClient, User } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const URL = Deno.env.get('SUPABASE_URL')!;
+// Do not name this variable URL: `new URL(req.url)` below uses the built-in URL constructor.
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const admin = createClient(URL, SERVICE_KEY, { auth: { persistSession: false } });
+const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 const METHODS = ['电话回访','上门探访','已联系家属','建议转介乡镇卫生院','暂不处置需继续观察'];
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, apikey, content-type', 'access-control-allow-methods': 'GET, POST, OPTIONS' } });
 const fail = (message: string, status = 400) => json({ ok: false, message }, status);
@@ -14,7 +15,7 @@ async function body(req: Request) { try { return await req.json(); } catch { ret
 async function authUser(req: Request): Promise<{ user: User; db: SupabaseClient } | null> {
   const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i,'');
   if (!token) return null;
-  const db = createClient(URL, ANON_KEY, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } });
+  const db = createClient(SUPABASE_URL, ANON_KEY, { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } });
   const { data, error } = await db.auth.getUser(token);
   return error || !data.user ? null : { user: data.user, db };
 }
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
     // Auth endpoints. Passwords are sent only to Supabase Auth over HTTPS.
     if (path === '/auth/register' && method === 'POST') {
       if (typeof b.email !== 'string' || !b.email.includes('@') || typeof b.password !== 'string' || b.password.length < 8) return fail('请提供有效邮箱，密码至少 8 位');
-      const publicClient = createClient(URL, ANON_KEY, { auth: { persistSession: false } });
+      const publicClient = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } });
       const { data, error } = await publicClient.auth.signUp({ email:b.email, password:b.password, options:{ data:{display_name: typeof b.display_name==='string' ? b.display_name.slice(0,80) : ''} } });
       if (error) return fail(error.message, 400);
       if (!data.user) return fail('注册未完成，请检查邮箱和 Auth 配置', 400);
@@ -77,7 +78,7 @@ Deno.serve(async (req) => {
     }
     if (path === '/auth/login' && method === 'POST') {
       if (typeof b.email !== 'string' || typeof b.password !== 'string') return fail('email 和 password 必填');
-      const client = createClient(URL,ANON_KEY,{auth:{persistSession:false}});
+      const client = createClient(SUPABASE_URL,ANON_KEY,{auth:{persistSession:false}});
       const { data, error } = await client.auth.signInWithPassword({email:b.email,password:b.password});
       if (error || !data.session) return fail('邮箱或密码错误，或账号尚未完成验证',401);
       const p = await profile(data.user);
