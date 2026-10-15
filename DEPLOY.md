@@ -95,12 +95,14 @@ uv run pywrangler deploy
 
 ## 3. 部署 React 前端到 Cloudflare Pages
 
-1. Cloudflare 控制台打开 **Workers & Pages → Create → Pages → Connect to Git**，授权并选择项目仓库。
-2. 构建设置填写：
+1. Cloudflare 控制台打开 **Workers & Pages → Create application → Pages → Connect to Git**，授权并选择项目仓库。确认创建类型是 **Pages**，不是普通 Worker。
+2. 当前构建表单若显示 **Build command / Deploy command / Root directory** 三项，填写：
 
    - **Root directory**：`deploy/frontend`
    - **Build command**：`npm run build`
-   - **Build output directory**：`dist`
+   - **Deploy command**：`npx wrangler pages deploy dist --project-name <你的 Pages 项目名>`
+
+   将 `<你的 Pages 项目名>` 换成控制台里 Pages 项目的实际名称，不要保留尖括号。若你的 Pages 表单提供传统的 **Build output directory** 输入框，则使用 `dist`，并按该表单说明部署；不要额外套用 Worker 的 `npx wrangler deploy`。
 
 3. 在 Pages 项目 **Settings → Environment variables** 的 Production 环境添加：
 
