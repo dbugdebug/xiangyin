@@ -4,6 +4,8 @@
 >
 > 当前版本：Supabase Edge Function API（竞赛演示 / MVP）。接口以部署中的 `api` Function 为准；后端实现更新，将同步更新本文。
 
+## 0.正在部署，下文已经过时请不要参考
+
 ## 1. 接口地址与环境变量
 
 Supabase Edge Function 的基础地址：

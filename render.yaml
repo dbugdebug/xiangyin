@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: xiangyin-api
+    runtime: python
+    plan: free
+    rootDir: deploy
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120
+    healthCheckPath: /api/ping
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: DB_MODE
+        value: postgres
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        value: postgres
+      - key: DB_SSLMODE
+        value: require
+      - key: AUTH_MODE
+        value: demo
+      - key: DEMO_AUTH_SECRET
+        generateValue: true
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false

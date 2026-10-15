@@ -1,0 +1,7 @@
+# 部署 / 本地演示用依赖（SQLite 模式，不含数据库客户端库）
+# 一键部署到云平台时用这份：数据随项目存放在本地 SQLite 文件
+Flask>=3.0
+Flask-CORS>=4.0
+python-dotenv>=1.0
+requests>=2.31
+gunicorn>=21.2

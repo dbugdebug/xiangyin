@@ -1,0 +1,4 @@
+# 团队共用云数据库（Supabase / PostgreSQL）用依赖
+# 用法：pip install -r requirements-postgres.txt
+-r requirements.txt
+psycopg2-binary>=2.9.9
