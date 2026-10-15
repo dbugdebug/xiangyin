@@ -42,10 +42,10 @@ echo   关闭服务：直接关掉本窗口
 echo ============================================
 echo.
 
-rem 检查 psycopg2（连云库必需）
-"%PY%" -c "import psycopg2" >nul 2>nul
+rem 检查 pg8000（PostgreSQL 驱动）
+"%PY%" -c "import pg8000" >nul 2>nul
 if errorlevel 1 (
-  echo [提示] 未检测到 psycopg2，服务会自动降级为本地库（数据不进云库）。
+  echo [提示] 未检测到 pg8000，当前无法连接 PostgreSQL。
   echo        要连 Supabase，请先执行：
   echo            "%PY%" -m pip install -r requirements-postgres.txt
   echo.

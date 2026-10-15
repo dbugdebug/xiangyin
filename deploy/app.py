@@ -1365,7 +1365,7 @@ def register():
                RETURNING id""",
             (
                 name,
-                generate_password_hash(form['password']),   # 密码只存哈希
+                generate_password_hash(form['password'],method='pbkdf2:sha256'),   # 密码只存哈希
                 phone,
                 role,
                 village,

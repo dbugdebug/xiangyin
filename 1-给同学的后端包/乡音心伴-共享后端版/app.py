@@ -20,6 +20,11 @@ from flask_cors import CORS
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 from collections import Counter
+import base64
+import hashlib
+import hmac
+import json
+import time as time_module
 import os
 import re
 from dotenv import load_dotenv
@@ -28,7 +33,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/api/*": {
+    "origins": ["https://ccup.us.ci", "https://xiangyin.pages.dev"],
+    "allow_headers": ["Content-Type", "Authorization"],
+    "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+}})
 
 # ==================== AI 服务 ====================
 
@@ -1231,6 +1240,122 @@ def normalize_role(raw):
     """角色归一化：空 → elder；非法 → None（由调用方报错）"""
     role = (raw or '').strip() or 'elder'
     return role if role in VALID_ROLES else None
+
+
+def _auth_secret():
+    try:
+        worker_env = request.environ.get('workers.env')
+        secret = getattr(worker_env, 'AUTH_SECRET', None) if worker_env else None
+    except Exception:
+        secret = None
+    return secret or os.getenv('AUTH_SECRET', '')
+
+
+def _b64url(data):
+    return base64.urlsafe_b64encode(data).decode('ascii').rstrip('=')
+
+
+def _issue_demo_token(user_id, role):
+    secret = _auth_secret()
+    if not secret:
+        raise RuntimeError('Worker 尚未配置 AUTH_SECRET')
+    payload = _b64url(json.dumps({'sub': int(user_id), 'role': role,
+        'exp': int(time_module.time()) + 60 * 60 * 24 * 30}, separators=(',', ':')).encode())
+    signature = _b64url(hmac.new(secret.encode(), payload.encode(), hashlib.sha256).digest())
+    return payload + '.' + signature
+
+
+def _read_demo_token(token):
+    secret = _auth_secret()
+    try:
+        payload, signature = token.split('.', 1)
+        expected = _b64url(hmac.new(secret.encode(), payload.encode(), hashlib.sha256).digest())
+        if not secret or not hmac.compare_digest(signature, expected):
+            return None
+        data = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
+        return data if int(data.get('exp', 0)) > int(time_module.time()) else None
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return None
+
+
+@app.route('/api/demo-login', methods=['POST', 'OPTIONS'])
+def demo_login():
+    """兼容当前线上前端。验证码只作占位：只需非空，不发送短信。"""
+    if request.method == 'OPTIONS':
+        return ('', 204)
+    if os.getenv('AUTH_MODE', 'demo').lower() != 'demo':
+        return jsonify({'ok': False, 'message': '演示登录已关闭'}), 403
+    form = request.get_json(silent=True) or {}
+    phone, code = str(form.get('phone') or '').strip(), str(form.get('code') or '').strip()
+    if not PHONE_RE.match(phone) or not code:
+        return jsonify({'ok': False, 'message': '请输入有效手机号和验证码'}), 400
+    role = normalize_role(form.get('role')) or 'elder'
+    conn = get_db()
+    try:
+        cursor = db_cursor(conn)
+        cursor.execute('SELECT id, name, phone, role, village FROM "user" WHERE phone = %s', (phone,))
+        row = cursor.fetchone()
+        registering = form.get('registering') is True or str(form.get('registering') or '').lower() in ('1', 'true', 'yes')
+        if row:
+            if registering:
+                cursor.close()
+                return jsonify({'ok': False, 'message': '该手机号已注册，请直接登录'}), 409
+            conn.rollback()
+        else:
+            if not registering:
+                cursor.close()
+                return jsonify({'ok': False, 'message': '该手机号尚未注册，请先注册'}), 404
+            name = str(form.get('name') or '').strip() or ('用户' + phone[-4:])
+            village = str(form.get('village') or '').strip() or None
+            if role == 'villager' and not str(form.get('village') or '').strip():
+                cursor.close()
+                return jsonify({'ok': False, 'message': '请填写所属村镇'}), 400
+            age = int(form['age']) if str(form.get('age') or '').isdigit() else None
+            gender = form.get('gender') if form.get('gender') in ('男', '女') else None
+            cursor.execute('INSERT INTO "user" (name, password_hash, phone, role, village, age, gender, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id',
+                           (name, 'demo-login-no-password', phone, role, village, age, gender, datetime.now()))
+            row = {'id': cursor.fetchone()['id'], 'name': name, 'phone': phone, 'role': role, 'village': village}
+            conn.commit()
+        token = _issue_demo_token(row['id'], row['role'])
+        cursor.close()
+        return jsonify({'ok': True, 'access_token': token, 'refresh_token': token,
+            'expires_at': int(time_module.time()) + 60 * 60 * 24 * 30,
+            'user': {'id': row['id'], 'user_id': row['id'], 'name': row['name'],
+                     'phone': row['phone'], 'role': row['role'], 'village': row['village']}})
+    except Exception:
+        conn.rollback()
+        app.logger.exception('demo login failed')
+        return jsonify({'ok': False, 'message': '登录服务暂时不可用'}), 500
+    finally:
+        release_db(conn)
+
+
+@app.route('/api/me', methods=['GET', 'OPTIONS'])
+def current_user():
+    if request.method == 'OPTIONS':
+        return ('', 204)
+    auth = request.headers.get('Authorization', '')
+    payload = _read_demo_token(auth[7:].strip()) if auth.lower().startswith('bearer ') else None
+    if not payload:
+        return jsonify({'ok': False, 'message': '登录已失效，请重新登录'}), 401
+    conn = get_db()
+    try:
+        cursor = db_cursor(conn)
+        cursor.execute('SELECT id, name, phone, role, village FROM "user" WHERE id = %s', (payload['sub'],))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({'ok': False, 'message': '登录已失效，请重新登录'}), 401
+        elder_id = None
+        if row['role'] == 'elder':
+            cursor.execute('SELECT id FROM elders WHERE phone = %s ORDER BY id LIMIT 1', (row['phone'],))
+            elder = cursor.fetchone()
+            elder_id = elder['id'] if elder else None
+        cursor.close()
+        return jsonify({'ok': True, 'user_id': row['id'], 'role': row['role'], 'elder_id': elder_id,
+            'user': {'id': row['id'], 'user_id': row['id'], 'name': row['name'],
+                     'phone': row['phone'], 'role': row['role'], 'village': row['village']}})
+    finally:
+        release_db(conn)
 
 
 def validate_register(form):

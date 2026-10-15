@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "xiangyin-xinban-api",
+  "main": "worker.py",
+  "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["python_workers"],
+  "workers_dev": true,
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "665804f817b44c82a7e1456dc1521502"
+    }
+  ],
+  "vars": {
+    "DB_MODE": "postgres",
+    "AUTH_MODE": "demo",
+    "CLOUDFLARE_WORKERS": "1"
+  }
+}
