@@ -1,0 +1,14 @@
+name = "xiangyin-xinban-api"
+main = "worker.py"
+compatibility_date = "2026-10-15"
+compatibility_flags = ["python_workers"]
+
+[vars]
+DB_MODE = "postgres"
+CLOUDFLARE_WORKERS = "1"
+AUTH_MODE = "demo"
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+# Create a Hyperdrive config in step 2 of DEPLOY.md, then paste its ID here.
+id = "665804f817b44c82a7e1456dc1521502"

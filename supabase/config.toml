@@ -1,0 +1,8 @@
+project_id = "xiangyin-supabase"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[functions.api]
+verify_jwt = false

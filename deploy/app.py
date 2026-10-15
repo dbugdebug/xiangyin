@@ -33,29 +33,40 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=[x.strip() for x in os.getenv('CORS_ORIGINS', '*').split(',') if x.strip()])
+CORS(app, origins='*')
 
-SUPABASE_URL = os.getenv('SUPABASE_URL', '').rstrip('/')
-SUPABASE_ANON_KEY = os.getenv('SUPABASE_ANON_KEY', '')
-AUTH_MODE = os.getenv('AUTH_MODE', 'supabase').strip().lower()
-DEMO_AUTH_SECRET = os.getenv('DEMO_AUTH_SECRET', '')
-demo_token_serializer = URLSafeTimedSerializer(DEMO_AUTH_SECRET, salt='xiangyin-demo-auth') if DEMO_AUTH_SECRET else None
+def runtime_env(name, default=''):
+    """Read Cloudflare bindings per request, falling back to local environment."""
+    try:
+        env = request.environ.get('workers.env')
+        if env is not None and getattr(env, name, None) is not None:
+            return str(getattr(env, name))
+    except RuntimeError:
+        pass
+    return os.getenv(name, default)
+
+def get_demo_serializer():
+    secret = runtime_env('DEMO_AUTH_SECRET')
+    return URLSafeTimedSerializer(secret, salt='xiangyin-demo-auth') if secret else None
 
 def authenticated_supabase_user():
     """Validate the caller's access token with Supabase Auth (never trust client role fields)."""
     token = (request.headers.get('Authorization') or '').removeprefix('Bearer ').strip()
-    if AUTH_MODE == 'demo':
-        if not demo_token_serializer or not token:
+    if runtime_env('AUTH_MODE', 'supabase').strip().lower() == 'demo':
+        serializer = get_demo_serializer()
+        if not serializer or not token:
             return None
         try:
-            claims = demo_token_serializer.loads(token, max_age=7 * 24 * 60 * 60)
+            claims = serializer.loads(token, max_age=7 * 24 * 60 * 60)
             return {'id': claims['id'], 'phone': claims['phone'], 'user_metadata': claims['user_metadata']}
         except (BadSignature, SignatureExpired, KeyError, TypeError):
             return None
-    if not token or not SUPABASE_URL or not SUPABASE_ANON_KEY:
+    supabase_url = runtime_env('SUPABASE_URL').rstrip('/')
+    supabase_anon_key = runtime_env('SUPABASE_ANON_KEY')
+    if not token or not supabase_url or not supabase_anon_key:
         return None
-    req = UrlRequest(f'{SUPABASE_URL}/auth/v1/user', headers={
-        'apikey': SUPABASE_ANON_KEY, 'Authorization': f'Bearer {token}'
+    req = UrlRequest(f'{supabase_url}/auth/v1/user', headers={
+        'apikey': supabase_anon_key, 'Authorization': f'Bearer {token}'
     })
     try:
         with urlopen(req, timeout=8) as response:
@@ -1745,7 +1756,8 @@ def demo_login():
     """Development-only login: any non-empty code is accepted by the client."""
     if request.method == 'OPTIONS':
         return ('', 204)
-    if AUTH_MODE != 'demo' or not demo_token_serializer:
+    serializer = get_demo_serializer()
+    if runtime_env('AUTH_MODE', 'supabase').strip().lower() != 'demo' or not serializer:
         return jsonify({'ok': False, 'message': '演示登录未启用'}), 404
     form = request.get_json(silent=True) or {}
     phone = str(form.get('phone') or '').strip()
@@ -1792,7 +1804,7 @@ def demo_login():
         'user_metadata': {'name': name, 'role': role, 'village': village, 'elder_phone': elder_phone,
                           'registering': bool(form.get('registering'))},
     }
-    token = demo_token_serializer.dumps(claims)
+    token = serializer.dumps(claims)
     return jsonify({
         'access_token': token,
         'refresh_token': token,
