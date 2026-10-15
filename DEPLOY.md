@@ -99,7 +99,7 @@ uv run pywrangler deploy
 2. 构建设置填写：
 
    - **Root directory**：`deploy/frontend`
-   - **Build command**：`npm ci && npm run build`
+   - **Build command**：`npm run build`
    - **Build output directory**：`dist`
 
 3. 在 Pages 项目 **Settings → Environment variables** 的 Production 环境添加：
@@ -111,6 +111,8 @@ uv run pywrangler deploy
 5. 若使用 Pages Preview 地址进行测试，Preview 环境也添加同样的两个变量，再触发一次 Preview 构建。
 
 前端变量在构建时写入静态资源，因此改变量后必须重新部署。`public/_redirects` 已处理前端路由刷新回退。
+
+Cloudflare Pages 会先自动安装依赖，再执行 Build command；不要在 Build command 里再运行一次 `npm ci`。如果安装日志提示 `esbuild@0.21.5` 的 `postinstall` 未批准，仓库的 `package.json` 已将这个构建必需脚本加入精确版本白名单。提交这项修改后重新部署。npm 的 `allowScripts` 机制会跳过未批准依赖脚本，而 esbuild 需要该脚本准备平台二进制文件。[npm allowScripts 说明](https://docs.npmjs.com/cli/v11/commands/npm-install-scripts/)
 
 ## 4. 注册、登录与多端验证
 
