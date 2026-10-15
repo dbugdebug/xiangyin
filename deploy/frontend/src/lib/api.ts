@@ -147,7 +147,8 @@ function mockRoute<R>(method: 'GET' | 'POST', path: string, body?: unknown): Pro
  * 配置线上 API 时请求共享 Flask 服务；未配置时使用本地 demoStore 预览。
  */
 const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? ''
-export const API_BASE = ((import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/+$/, '') ?? '')
+const configuredApiBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim()
+export const API_BASE = (configuredApiBase || (import.meta.env.PROD ? 'https://api.ccup.us.ci' : '')).replace(/\/+$/, '')
 async function tryBackend<R>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<R | undefined> {
   if ((!isSupabaseConfigured() && !isDemoOtpEnabled()) || !API_BASE) return undefined
   try {

@@ -5,7 +5,12 @@ const SESSION_KEY = 'xy_supabase_session'
 export type AuthSession = { access_token: string; refresh_token: string; expires_at?: number; user: { id: string; phone?: string; user_metadata?: Record<string, unknown> } }
 
 export function isSupabaseConfigured() { return Boolean(SUPABASE_URL && SUPABASE_KEY) }
-export function isDemoOtpEnabled() { return import.meta.env.VITE_DEMO_OTP === 'true' }
+export function isDemoOtpEnabled() {
+  const configured = import.meta.env.VITE_DEMO_OTP as string | undefined
+  // The deployment package defaults to fake OTP only when Supabase Auth is not configured.
+  // Set VITE_DEMO_OTP=false explicitly to require real Supabase phone verification.
+  return configured === 'true' || (configured == null && import.meta.env.PROD && !isSupabaseConfigured())
+}
 export function getAuthSession(): AuthSession | null {
   try {
     const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null') as AuthSession | null
