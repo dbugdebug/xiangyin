@@ -80,9 +80,9 @@ export async function verifyPhoneOtp(
     })
   }
 
-  const login = await workerRequest<AuthSession>('/api/demo-login', {
-    phone, code, role, ...details, registering: action === 'register',
-  })
+  // 注册 API 已经先创建了 user 记录；随后应按普通登录换取演示会话。
+  // 再传 registering=true 会让后端把刚创建的账号误判成重复注册。
+  const login = await workerRequest<AuthSession>('/api/demo-login', { phone, code, role, ...details })
   const profile = await workerRequest<{ role: Role; elder_id: number | null }>('/api/me', undefined, login.access_token)
   const session: AuthSession = { ...login, role: profile.role, elder_id: profile.elder_id }
   saveAuthSession(session)
