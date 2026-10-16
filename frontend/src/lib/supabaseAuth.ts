@@ -1,10 +1,12 @@
 const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/+$/, '') ?? ''
 const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? ''
 const SESSION_KEY = 'xy_supabase_session'
+const DEMO_ROLE_SWITCH_ENABLED = (import.meta.env.VITE_DEMO_ROLE_SWITCH_ENABLED as string | undefined) === 'true'
 
 export type AuthSession = { access_token: string; refresh_token: string; expires_at?: number; user: { id: string; phone?: string } }
 
 export function isSupabaseConfigured() { return Boolean(SUPABASE_URL && SUPABASE_KEY) }
+export function isDemoRoleSwitchEnabled() { return DEMO_ROLE_SWITCH_ENABLED }
 export function getAuthSession(): AuthSession | null {
   try {
     const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null') as AuthSession | null
@@ -50,4 +52,25 @@ export async function verifyPhoneOtp(phone: string, token: string, role = 'elder
   const data = result.session as AuthSession & { role: string; elder_id: number | null }
   saveAuthSession(data)
   return data
+}
+
+export async function switchDemoRole(role: 'elder' | 'family' | 'villager'): Promise<AuthSession & { role: string; elder_id: number | null }> {
+  if (!isSupabaseConfigured()) throw new Error('当前未配置在线账号服务')
+  if (!isDemoRoleSwitchEnabled()) throw new Error('当前环境未启用演示角色切换')
+  const current = await getValidAuthSession()
+  if (!current?.access_token) throw new Error('登录已失效，请重新登录')
+  const response = await fetch(`${SUPABASE_URL}/functions/v1/api/api/auth/demo/switch-role`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${current.access_token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ role }),
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok || result.ok === false) throw new Error(result.message || '演示角色切换失败')
+  const session = result.session as AuthSession & { role: string; elder_id: number | null }
+  saveAuthSession(session)
+  return session
 }

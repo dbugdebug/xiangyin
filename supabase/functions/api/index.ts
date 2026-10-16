@@ -104,6 +104,66 @@ async function context(req: Request) {
   return { user, role: profile.role as string, elderId: profile.elder_id as number | null }
 }
 
+async function loginOrCreateDemoRole(role: string, phone: string, details: Record<string, unknown> = {}) {
+  const login = { phone, code: 'demo-role-switch', action: 'login', role, ...details }
+  try {
+    return await demoAuth(login)
+  } catch (error) {
+    if (!(error instanceof Error) || !error.message.includes('还没有注册')) throw error
+  }
+
+  try {
+    return await demoAuth({ ...login, action: 'register' })
+  } catch (error) {
+    // If two presenters switch at once, the other request may create this fixed
+    // demo account first. Retry login instead of surfacing a duplicate error.
+    if (error instanceof Error && error.message.includes('已注册')) {
+      return await demoAuth(login)
+    }
+    throw error
+  }
+}
+
+async function switchDemoRole(req: Request, role: string) {
+  // Require a real, current Supabase Auth session before issuing another one.
+  await context(req)
+  if (Deno.env.get('DEMO_ROLE_SWITCH_ENABLED') !== 'true') {
+    throw new Error('演示角色切换未启用')
+  }
+  if (fakeOtpSecret.length < 32) throw new Error('服务端尚未配置 FAKE_OTP_SECRET')
+  if (!['elder', 'family', 'villager'].includes(role)) throw new Error('演示角色不正确')
+
+  const phoneByRole = {
+    elder: Deno.env.get('DEMO_ELDER_PHONE') ?? '13800000001',
+    family: Deno.env.get('DEMO_FAMILY_PHONE') ?? '13900000001',
+    villager: Deno.env.get('DEMO_VILLAGER_PHONE') ?? '13900000002',
+  }
+  const phone = phoneByRole[role as keyof typeof phoneByRole]
+  if (!/^1\d{10}$/.test(phone)) throw new Error('演示账号手机号配置不正确')
+
+  const elderPhone = phoneByRole.elder
+  if (role === 'family') {
+    // Ensure the demo elder exists first so the family demo account can be
+    // linked using the existing family_relations schema.
+    await loginOrCreateDemoRole('elder', elderPhone, { name: '王桂兰', age: 78 })
+  }
+  const session = await loginOrCreateDemoRole(role, phone, {
+    name: role === 'elder' ? '王桂兰' : role === 'family' ? '演示家属' : '演示村协管员',
+    age: role === 'elder' ? 78 : undefined,
+    elder_phone: role === 'family' ? elderPhone : undefined,
+  })
+
+  if (role === 'family' && session.user?.id) {
+    const elder = check(await admin.from('elders').select('id').eq('phone', elderPhone).single())
+    check(await admin.from('family_relations').upsert({
+      family_user_id: session.user.id,
+      elder_id: elder.id,
+      relationship: '演示家属',
+    }, { onConflict: 'family_user_id,elder_id' }))
+  }
+  return session
+}
+
 async function canAccess(ctx: Awaited<ReturnType<typeof context>>, elderId: number) {
   if (ctx.role === 'villager' || (ctx.role === 'elder' && ctx.elderId === elderId)) return true
   if (ctx.role !== 'family') return false
@@ -358,11 +418,15 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}))
       return json({ ok: true, session: await demoAuth(body) })
     }
+    if (req.method === 'POST' && pathname.endsWith('/api/auth/demo/switch-role')) {
+      const body = await req.json().catch(() => ({}))
+      return json({ ok: true, session: await switchDemoRole(req, String(body.role ?? '')) })
+    }
     const ctx = await context(req)
     return json(await handle(req, ctx))
   } catch (e) {
     const message = e instanceof Error ? e.message : '服务器内部错误'
-    const status = message.includes('登录') ? 401 : message.includes('无权') || message.includes('权限') ? 403 : 200
+    const status = message.includes('登录') ? 401 : message.includes('无权') || message.includes('权限') || message.includes('未启用') ? 403 : 200
     return json(fail(message), status)
   }
 })

@@ -1,22 +1,38 @@
-# 日志文件
-*.log
-*.temp/
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
 
-# 依赖包目录
+# JavaScript
 node_modules/
-venv/
+dist/
+build/
+coverage/
 
-# 操作系统自动生成的文件
+# Python and Cloudflare local artifacts
+.venv/
+.venv-*/
+venv/
+__pycache__/
+*.py[cod]
+.python-version
+.python-version.*
+.python-build-standalone/
+.python-build-standalone-*/
+python_modules/
+.wrangler/
+.dev.vars
+
+# Editors and operating systems
 .DS_Store
 Thumbs.db
-
-# IDE 或编辑器配置
 .idea/
 .vscode/
 *.suo
 
-# 编译生成的结果
-/dist/
-/build/
-*.class
-
+# Logs and temporary files
+*.log
+*.temp
+*.tmp

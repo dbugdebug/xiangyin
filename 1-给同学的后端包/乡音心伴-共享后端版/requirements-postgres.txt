@@ -1,3 +1,0 @@
--r requirements.txt
-# Cloudflare Python Workers + Hyperdrive PostgreSQL driver
-pg8000>=1.31,<2

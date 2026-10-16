@@ -1,7 +1,6 @@
 # 乡音心伴 · 前端接口契约（供后端对接参考）
 
-> 当前原型为**纯前端 Demo**，数据全部来自 `src/lib/demoStore.ts`，**无需启动任何后端**即可路演。  
-> 若后续需要真实数据库与持久化，后端按本文档实现对应接口，再把 `src/lib/api.ts` 中的 `mockRoute` 替换为 `fetch`，**页面代码零改动**。
+> 本文保留现有业务数据 API 契约。当前项目可在本地 mock 与 Supabase Edge Function 两种模式运行，线上模式配置见 `src/lib/api.ts` 和 `src/lib/supabaseAuth.ts`。不要把下方历史说明理解为“线上无需后端”。
 
 ## 通用约定
 
@@ -10,6 +9,17 @@
 - 请求体：`Content-Type: application/json`
 - 响应体：JSON
 - 错误处理：建议返回 HTTP 200 并在 body 中携带 `{ ok: false, message: '...' }`；前端会 catch 异常并展示友好占位。
+- 在线业务调用由 Supabase Edge Function 校验 Supabase JWT 和 profile 角色；localStorage 的 `xy_role` 仅控制 UI。
+
+## 登录和演示角色切换
+
+### `POST /api/auth/demo`
+
+由 supabase/functions/api/index.ts 处理。请求体包含手机号、任意非空 code、role 和 action（login/register）。验证码仅为演示占位，不发送短信。
+
+### `POST /api/auth/demo/switch-role`
+
+仅演示环境开放。需要当前有效的 Supabase Bearer token，请求体 `{ "role": "elder" }`、`family` 或 `villager`。成功响应 `{ "ok": true, "session": { ...SupabaseSession, "role": "family", "elder_id": null } }`。Edge Function 只签发固定演示账号的新会话，不修改调用者真实账号角色。前端和服务端需分别显式设置演示开关。
 
 ---
 
