@@ -5,7 +5,7 @@ import RoleCard from '../components/RoleCard'
 import Toast from '../components/Toast'
 import { setElderId, setRole, ROUTE_BY_ROLE } from '../lib/session'
 import type { Role } from '../types'
-import { isSupabaseConfigured, sendPhoneOtp, verifyPhoneOtp } from '../lib/supabaseAuth'
+import { isWorkerConfigured, sendPhoneOtp, verifyPhoneOtp } from '../lib/workerAuth'
 
 const ROLES: Array<{ key: Role; emoji: string; label: string; desc: string }> = [
   { key: 'elder', emoji: '👴', label: '老人', desc: '唠嗑 · 陪伴' },
@@ -27,6 +27,7 @@ export default function Login() {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [elderPhone, setElderPhone] = useState('')
+  const [village, setVillage] = useState('')
   const [countdown, setCountdown] = useState(0)
   const [notice, setNotice] = useState('')
 
@@ -58,7 +59,7 @@ export default function Login() {
       setNotice('请先输入 11 位手机号')
       return
     }
-    if (!isSupabaseConfigured()) {
+    if (!isWorkerConfigured()) {
       setCountdown(60)
       setNotice('演示模式：验证码可随便填写')
       return
@@ -87,10 +88,10 @@ export default function Login() {
       setNotice('请填一下收到的验证码')
       return
     }
-    if (!isSupabaseConfigured()) { enter(role); return }
+    if (!isWorkerConfigured()) { enter(role); return }
     try {
-      const session = await verifyPhoneOtp(phone, code.trim(), role, mode, { name, elder_phone: elderPhone })
-      setElderId(session.elder_id)
+      const session = await verifyPhoneOtp(phone, code.trim(), role, mode, { name, village, elder_phone: elderPhone })
+      setElderId(session.elder_id ?? null)
       enter(session.role as Role)
     } catch (e) {
       setNotice(e instanceof Error ? e.message : '登录失败，请检查验证码或账号配置')
@@ -106,8 +107,9 @@ export default function Login() {
           {(['login', 'register'] as const).map((item) => <button key={item} onClick={() => setMode(item)} className={`flex-1 rounded-full py-2 text-base font-bold ${mode === item ? 'bg-white text-orange-600 shadow' : 'text-stone-500'}`}>{item === 'login' ? '登录' : '注册新账号'}</button>)}
         </div>
         {mode === 'register' && <div className="mb-3 space-y-3">
-          {role === 'elder' && <input value={name} onChange={(e) => setName(e.target.value.slice(0, 30))} placeholder="老人姓名" className="h-12 w-full rounded-2xl border-2 border-stone-200 bg-white px-5 text-lg" />}
+          <input value={name} onChange={(e) => setName(e.target.value.slice(0, 30))} placeholder={role === 'elder' ? '老人姓名' : role === 'family' ? '家属姓名' : '姓名'} className="h-12 w-full rounded-2xl border-2 border-stone-200 bg-white px-5 text-lg" />
           {role === 'family' && <input value={elderPhone} onChange={(e) => setElderPhone(e.target.value.replace(/\D/g, '').slice(0, 11))} inputMode="numeric" placeholder="要绑定的老人手机号（先注册老人）" className="h-12 w-full rounded-2xl border-2 border-stone-200 bg-white px-5 text-lg" />}
+          {role === 'villager' && <input value={village} onChange={(e) => setVillage(e.target.value.slice(0, 50))} placeholder="所属村镇" className="h-12 w-full rounded-2xl border-2 border-stone-200 bg-white px-5 text-lg" />}
         </div>}
 
         {/* 手机号 + 验证码 */}
@@ -141,7 +143,7 @@ export default function Login() {
         >
           {mode === 'login' ? '登 录' : '注 册'}
         </button>
-        {!isSupabaseConfigured() && <button
+        {!isWorkerConfigured() && <button
           onClick={() => enter(role)}
           className="mt-4 h-14 w-full rounded-full border-2 border-dashed border-orange-300 bg-orange-50/50 text-xl font-semibold text-orange-500 transition active:scale-[0.98]"
         >
@@ -168,7 +170,7 @@ export default function Login() {
 
       {/* 隐私声明 */}
       <p className="shrink-0 px-6 pb-5 text-center text-base leading-relaxed text-stone-400">
-        {isSupabaseConfigured() ? '🔒 登录后数据将通过 Supabase 服务处理' : '🔒 本 Demo 仅用于原型演示，数据不上传，隐私信息不会被收集'}
+        {isWorkerConfigured() ? '🔒 登录后数据通过 Cloudflare Workers 与 Supabase 数据库处理' : '🔒 本 Demo 仅用于原型演示，数据不上传，隐私信息不会被收集'}
       </p>
 
       <Toast text={notice} />

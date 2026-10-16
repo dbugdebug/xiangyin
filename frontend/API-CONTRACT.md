@@ -1,6 +1,6 @@
 # 乡音心伴 · 前端接口契约（供后端对接参考）
 
-> 本文保留现有业务数据 API 契约。当前项目可在本地 mock 与 Supabase Edge Function 两种模式运行，线上模式配置见 `src/lib/api.ts` 和 `src/lib/supabaseAuth.ts`。不要把下方历史说明理解为“线上无需后端”。
+> 线上业务 API 由 Cloudflare Worker 提供，Supabase 只作为 PostgreSQL 数据库。配置见 `src/lib/api.ts`、`src/lib/workerAuth.ts`。本地未设置 Worker URL 时才使用 mock。
 
 ## 通用约定
 
@@ -9,17 +9,15 @@
 - 请求体：`Content-Type: application/json`
 - 响应体：JSON
 - 错误处理：建议返回 HTTP 200 并在 body 中携带 `{ ok: false, message: '...' }`；前端会 catch 异常并展示友好占位。
-- 在线业务调用由 Supabase Edge Function 校验 Supabase JWT 和 profile 角色；localStorage 的 `xy_role` 仅控制 UI。
+- 在线业务调用携带 Worker 签名的 `Authorization: Bearer ...`；localStorage 的 `xy_role` 仅控制 UI。
 
 ## 登录和演示角色切换
 
-### `POST /api/auth/demo`
+### `POST /api/register` 和 `POST /api/demo-login`
 
-由 supabase/functions/api/index.ts 处理。请求体包含手机号、任意非空 code、role 和 action（login/register）。验证码仅为演示占位，不发送短信。
+注册请求先通过 `/api/register` 写入现有用户表，再调用 `/api/demo-login`。登录请求体包括手机号、任意非空 `code` 和已注册的 `role`。验证码仅作演示输入，不发送短信；成功响应包含 `access_token`、`refresh_token`、`expires_at` 和用户资料。
 
-### `POST /api/auth/demo/switch-role`
-
-仅演示环境开放。需要当前有效的 Supabase Bearer token，请求体 `{ "role": "elder" }`、`family` 或 `villager`。成功响应 `{ "ok": true, "session": { ...SupabaseSession, "role": "family", "elder_id": null } }`。Edge Function 只签发固定演示账号的新会话，不修改调用者真实账号角色。前端和服务端需分别显式设置演示开关。
+演示角色切换使用预先注册的三个固定演示账号重新调用 `/api/demo-login`。切换账号必须存在且数据库 role 匹配。
 
 ---
 

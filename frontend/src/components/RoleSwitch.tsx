@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getRole, setElderId, setRole, ROUTE_BY_ROLE } from '../lib/session'
 import type { Role } from '../types'
-import { isDemoRoleSwitchEnabled, isSupabaseConfigured, switchDemoRole } from '../lib/supabaseAuth'
+import { isDemoRoleSwitchEnabled, isWorkerConfigured, switchDemoRole } from '../lib/workerAuth'
 
 const OPTIONS: Array<{ role: Role; label: string }> = [
   { role: 'elder', label: '👴 老人端 · 语音陪伴' },
@@ -20,7 +20,7 @@ export default function RoleSwitch({ compact = false }: { compact?: boolean }) {
   const [error, setError] = useState('')
   const navigate = useNavigate()
   const cur = getRole()
-  const onlineAuth = isSupabaseConfigured()
+  const onlineAuth = isWorkerConfigured()
   if (onlineAuth && !isDemoRoleSwitchEnabled()) return null
 
   const jump = async (r: Role) => {

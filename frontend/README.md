@@ -3,7 +3,7 @@
 > 让每一位农村老人，都有人说话、有人关心、有人守护。
 > 面向农村老人的方言 AI 语音陪伴产品：老人用语音和大模型唠嗑，系统在对话中**轻量嵌入情绪与抑郁筛查**，发现风险自动预警并转介家属 / 村协管员，形成"筛查 — 预警 — 转介 — 闭环"。
 
-> 当前可在本地 mock 模式演示，也可配置 Supabase Auth + Edge Function 使用共享数据。在线角色切换需显式配置 VITE_DEMO_ROLE_SWITCH_ENABLED；角色路由里的 localStorage 值不承担服务端授权。
+> 当前线上结构为 Cloudflare Pages + Cloudflare Workers API + Supabase PostgreSQL。Supabase 只提供数据库；手机号演示认证和业务 API 由 Worker 提供。
 
 ---
 
@@ -58,9 +58,9 @@ npx http-server -p 8080
 
 ### 2. 三端之间切换（路演专用）
 
-每个已登录角色端右上角有「🎭 切换演示角色」。本地 mock 模式只切换本地角色；配置 Supabase Auth 时，会调用服务端切换到固定演示账号并保存新的 Supabase 会话，再进入对应端。
+每个已登录角色端右上角有「🎭 切换演示角色」。本地 mock 模式只切换本地角色；Worker 在线模式下会重新登录到 Pages 环境变量中配置的固定演示账号，并保存 Worker 签名会话。
 
-在线切换需同时开启前端构建变量 VITE_DEMO_ROLE_SWITCH_ENABLED=true 和 Edge Function secret DEMO_ROLE_SWITCH_ENABLED=true。正式环境默认关闭。服务端验证当前 Supabase 会话，不会修改真实账号的角色。更多部署配置见 docs/后端同学开发说明.md。
+在线切换需将前端构建变量 VITE_DEMO_ROLE_SWITCH_ENABLED=true，并在 VITE_DEMO_ELDER_PHONE、VITE_DEMO_FAMILY_PHONE、VITE_DEMO_VILLAGER_PHONE 配置已注册的专用演示账号。正式环境关闭。更多部署配置见仓库根目录 DEPLOY.md。
 
 ### 3. 角色权限守卫
 

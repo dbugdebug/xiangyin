@@ -1,15 +1,15 @@
 # 乡音心伴
 
-面向农村老人的方言 AI 语音陪伴与心理量表筛查项目。仓库只保留一套主开发源码：React 前端在 frontend/，Supabase 数据库迁移与 Edge Function 在 supabase/。Cloudflare Python Worker（deploy/）是兼容旧 API 的独立备选后端，不是前端或 Supabase 的副本。
+面向农村老人的方言 AI 语音陪伴与心理量表筛查项目。React 前端位于 frontend/，Cloudflare Python Worker API 位于 deploy/，Supabase 只提供 PostgreSQL 数据库，Worker 通过 Hyperdrive 访问。
 
 ## 目录约定
 
     frontend/        React + TypeScript + Vite，Cloudflare Pages 前端
-    supabase/        数据库迁移、种子数据、Edge Function（主后端）
-    deploy/          可选 Flask + Cloudflare Python Worker 后端，仅保留 Worker 源码
+    supabase/        PostgreSQL 迁移、种子数据和 Supabase 项目配置
+    deploy/          Flask + Cloudflare Python Worker API 和 Hyperdrive 配置
     docs/            架构、分工、开发说明与历史资料归档
 
-前端调用的 API 路径保持 /api/...。主线前端使用 Supabase Auth 与 supabase/functions/api；deploy/ 的 Worker 使用另一套演示 Bearer token，不能混用两种会话。
+前端和 Worker 沿用 /api/... 接口。手机号和假验证码由 Worker 演示登录处理，Supabase Auth/Edge Function 不参与当前登录链路。Worker 使用 HMAC Bearer 会话并通过 Hyperdrive 访问 Supabase PostgreSQL。
 
 ## 开始开发
 
@@ -17,9 +17,9 @@
     npm ci
     npm run dev
 
-前端环境变量参考 frontend/.env.supabase.example。不要提交真实密钥或 .env.local。
+前端环境变量参考 frontend/.env.worker.example。不要提交真实密钥或 .env.local。
 
-Supabase Edge Function 本地调试及发布见 DEPLOY.md。提交规范、PR 流程、协作者权限与保护主分支设置见 CONTRIBUTING.md。
+Pages、Worker、Hyperdrive 和数据库交接步骤见 DEPLOY.md。提交规范、PR 流程、协作者权限与保护主分支设置见 CONTRIBUTING.md。
 
 ## 团队文档
 

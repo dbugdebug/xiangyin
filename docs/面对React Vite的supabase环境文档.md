@@ -1,4 +1,6 @@
-# 面对React Vite的supabase环境文档
+# 历史文档：React + Vite 直连 Supabase Auth
+
+> 当前架构已切换为 Cloudflare Pages + Workers API + Supabase PostgreSQL。前端不再配置 Supabase Auth key；请以仓库根目录 DEPLOY.md 和 frontend/.env.worker.example 为准。本页仅保留旧版配置记录，不适用于当前部署。
 
 1. 环境配置
 ```
@@ -11,7 +13,7 @@ Code:
 File: .env
 ```bash
 VITE_SUPABASE_URL=https://bkalpzlqwektfpxczhon.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_Dd2CsCDtzPhNWOOkDcf6qA_eBFIM_uX
+VITE_SUPABASE_PUBLISHABLE_KEY=<旧版示例值，当前不用>
 ```
 
 File: utils/supabase.ts

@@ -49,8 +49,8 @@ def get_demo_serializer():
     secret = runtime_env('DEMO_AUTH_SECRET')
     return URLSafeTimedSerializer(secret, salt='xiangyin-demo-auth') if secret else None
 
-def authenticated_supabase_user():
-    """Validate the caller's access token with Supabase Auth (never trust client role fields)."""
+def authenticated_api_user():
+    """Validate the caller's Supabase JWT or demo Worker token."""
     token = (request.headers.get('Authorization') or '').removeprefix('Bearer ').strip()
     if runtime_env('AUTH_MODE', 'supabase').strip().lower() == 'demo':
         serializer = get_demo_serializer()
@@ -76,8 +76,8 @@ def authenticated_supabase_user():
 
 @app.before_request
 def require_authenticated_api():
-    if request.method != 'OPTIONS' and request.path.startswith('/api/') and request.path not in ('/api/ping', '/api/demo-login'):
-        user = authenticated_supabase_user()
+    if request.method != 'OPTIONS' and request.path.startswith('/api/') and request.path not in ('/api/ping', '/api/demo-login', '/api/register'):
+        user = authenticated_api_user()
         if not user:
             return jsonify({'ok': False, 'message': '登录已失效，请重新登录'}), 401
         request.supabase_user = user
@@ -1463,7 +1463,7 @@ def profile():
 
 @app.route('/api/me', methods=['GET'])
 def current_account():
-    """Create or load the app profile for the verified Supabase phone account."""
+    """Create or load the app profile for the verified phone account."""
     auth_user = request.supabase_user
     phone = (auth_user.get('phone') or '').strip()
     phone = phone[3:] if phone.startswith('+86') else phone

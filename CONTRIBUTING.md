@@ -44,8 +44,7 @@ GitHub 计划提供的规则选项会随仓库类型变化；若当前计划没�
 
 ## 4. 项目约定
 
-- 唯一前端源码在 frontend/；唯一 Supabase 迁移和 Edge Function 在 supabase/。不要复制到 deploy/ 或新建第二套工作目录。
-- deploy/ 仅作为可选 Cloudflare Python Worker API 的源目录维护。
+- 唯一前端源码在 frontend/；唯一 Supabase 数据库迁移在 supabase/；Worker API 源码在 deploy/。不要复制源码或新建第二套工作目录。
 - 数据库结构沿用现有表；新增或修改表必须提交独立 migration，说明兼容与回滚方案并经维护者 review。
 - API 保持现有 /api/... 路径及响应兼容；前后端变更放在同一个 PR 或明确标注依赖顺序。
 - 不提交 .env、.env.local、令牌、私钥、用户手机号、真实健康记录、音频或数据库导出。
@@ -54,6 +53,6 @@ GitHub 计划提供的规则选项会随仓库类型变化；若当前计划没�
 ## 5. 角色职责
 
 - 前端：frontend/src，按 [前端开发说明](docs/前端同学开发说明.md) 开发。
-- 后端：主线 API 在 supabase/functions/api，按 [后端开发说明](docs/后端同学开发说明.md) 开发。
+- 后端：主线 API 在 deploy/，按 [后端开发说明](docs/后端同学开发说明.md) 开发；Supabase 负责数据库。
 - 算法：通过后端 adapter 接入，按 [算法开发说明](docs/算法同学开发说明.md) 开发。
 - 整体接口和数据约束见 [项目架构文档](docs/项目整体架构与团队开发文档.md)。

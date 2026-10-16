@@ -1,8 +1,8 @@
 import type { Role } from '../types'
-import { clearAuthSession } from './supabaseAuth'
+import { clearAuthSession } from './workerAuth'
 
 /**
- * UI 路由角色与老人档案选择。访问数据时由 Supabase Edge Function 再验证 JWT 和服务端角色。
+ * UI 路由角色与老人档案选择。在线数据请求由 Workers API 验证 Bearer token 和服务端角色。
  *
  * 注意：localStorage 在 file:// 协议或隐私模式下可能不可写；
  * 所有读写都用 try-catch 包裹，失败时回退化角色为空，保证路演任何环境都不白屏。

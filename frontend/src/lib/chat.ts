@@ -15,7 +15,7 @@ import { matchRisk } from './risk'
 import { getElderId } from './session'
 import type { ChatMsg } from '../types'
 import { apiRequest } from './api'
-import { isSupabaseConfigured } from './supabaseAuth'
+import { isWorkerConfigured } from './workerAuth'
 
 export interface ChatRisk {
   keyword: string
@@ -94,9 +94,9 @@ export async function chat(history: ChatMsg[]): Promise<ChatResult> {
     /* 后端不在线 → 本地降级回复 */
   }
 
-  // In a Supabase build, never call an LLM directly from the browser (the key
-  // belongs in Edge Function secrets). Keep only the safe offline fallback.
-  if (isSupabaseConfigured()) {
+  // In a hosted build, never call an LLM directly from the browser (the key
+  // belongs in Worker secrets). Keep only the safe offline fallback.
+  if (isWorkerConfigured()) {
     await sleep(500)
     return offlineResult(lastUser)
   }

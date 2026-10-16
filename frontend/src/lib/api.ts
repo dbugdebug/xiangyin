@@ -10,7 +10,8 @@
  * 将来若需接真实后端，只需把下方 mockRoute 换成 fetch，**页面代码零改动**。
  */
 import * as store from './demoStore'
-import { getValidAuthSession, isSupabaseConfigured } from './supabaseAuth'
+import { getValidAuthSession, isWorkerConfigured } from './workerAuth'
+import { VITE_WORKER_API_URL } from '../config'
 
 // 类型统一出口：页面原先从 '../lib/api' 引入这些类型，这里原样再导出，页面代码零改动
 export type {
@@ -145,12 +146,10 @@ function mockRoute<R>(method: 'GET' | 'POST', path: string, body?: unknown): Pro
 /* ---------------------------------------------------------------- 统一出口 */
 
 /**
- * Supabase 配置存在时请求 Edge Function；线上失败会报错，不冒充为演示数据。
+ * Worker URL 配置存在时请求 Cloudflare Worker；线上失败会报错，不冒充为演示数据。
  * 未配置 Supabase 时继续使用本地 demoStore，便于离线预览。
  */
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/+$/, '') ?? ''
-const SUPABASE_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? ''
-export const API_BASE = SUPABASE_URL ? `${SUPABASE_URL}/functions/v1/api` : ''
+export const API_BASE = VITE_WORKER_API_URL.replace(/\/+$/, '')
 let backendDownAt = 0 // 0 = 后端在线（或从未探测失败）
 
 function backendDown(): boolean {
@@ -158,20 +157,16 @@ function backendDown(): boolean {
 }
 
 async function tryBackend<R>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<R | undefined> {
-  if (!isSupabaseConfigured()) return undefined
+  if (!isWorkerConfigured()) return undefined
   if (backendDown()) return undefined
   try {
     const session = await getValidAuthSession()
     const makeRequest = (token?: string) => fetch(`${API_BASE}${path}`, {
       method,
-      headers: { apikey: SUPABASE_KEY, ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
       body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined,
     })
-    let res = await makeRequest(session?.access_token)
-    if (res.status === 401) {
-      const refreshed = await getValidAuthSession()
-      if (refreshed?.access_token) res = await makeRequest(refreshed.access_token)
-    }
+    const res = await makeRequest(session?.access_token)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = (await res.json()) as Record<string, unknown>
     // 契约约定：错误为 HTTP 200 + { ok:false, message }
@@ -179,7 +174,7 @@ async function tryBackend<R>(method: 'GET' | 'POST', path: string, body?: unknow
     backendDownAt = 0
     return data as R
   } catch {
-    if (backendDownAt === 0) console.warn(`[api] Supabase API 请求失败：${method} ${path}`)
+    if (backendDownAt === 0) console.warn(`[api] Workers API 请求失败：${method} ${path}`)
     backendDownAt = backendDownAt || Date.now()
     return undefined
   }
@@ -189,20 +184,20 @@ export const api = {
   get: async <R>(path: string) => {
     const remote = await tryBackend<R>('GET', path)
     if (remote !== undefined) return remote
-    if (isSupabaseConfigured()) throw new Error('Supabase API 请求失败，请检查登录状态和 Edge Function 部署')
+    if (isWorkerConfigured()) throw new Error('Workers API 请求失败，请检查登录状态和 Worker 部署')
     return mockRoute<R>('GET', path)
   },
   post: async <R>(path: string, body?: unknown) => {
     const remote = await tryBackend<R>('POST', path, body)
     if (remote !== undefined) return remote
-    if (isSupabaseConfigured()) throw new Error('Supabase API 请求失败，请检查登录状态和 Edge Function 部署')
+    if (isWorkerConfigured()) throw new Error('Workers API 请求失败，请检查登录状态和 Worker 部署')
     return mockRoute<R>('POST', path, body)
   },
 }
 
 export async function apiRequest<R>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<R> {
   const remote = await tryBackend<R>(method, path, body)
-  if (remote === undefined) throw new Error('Supabase API 请求失败，请检查登录状态和 Edge Function 部署')
+  if (remote === undefined) throw new Error('Workers API 请求失败，请检查登录状态和 Worker 部署')
   return remote
 }
 
