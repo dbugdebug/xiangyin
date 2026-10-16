@@ -86,6 +86,9 @@ export default function VillageBoard() {
 
   useEffect(() => {
     load()
+    // 让老人端新产生的预警和家属端的处理结果在其他设备上自动同步。
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load() }, 10000)
+    return () => window.clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

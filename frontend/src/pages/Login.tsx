@@ -24,10 +24,6 @@ export default function Login() {
   const [role, setRoleState] = useState<Role>('elder')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
-  const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [name, setName] = useState('')
-  const [elderPhone, setElderPhone] = useState('')
-  const [village, setVillage] = useState('')
   const [countdown, setCountdown] = useState(0)
   const [notice, setNotice] = useState('')
 
@@ -90,7 +86,7 @@ export default function Login() {
     }
     if (!isWorkerConfigured()) { enter(role); return }
     try {
-      const session = await verifyPhoneOtp(phone, code.trim(), role, mode, { name, village, elder_phone: elderPhone })
+      const session = await verifyPhoneOtp(phone, code.trim(), role, 'login')
       setElderId(session.elder_id ?? null)
       enter(session.role as Role)
     } catch (e) {
@@ -102,15 +98,6 @@ export default function Login() {
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="flex-1 px-7 pb-6 pt-12">
         <Logo />
-
-        <div className="mb-4 flex rounded-full bg-stone-100 p-1">
-          {(['login', 'register'] as const).map((item) => <button key={item} onClick={() => setMode(item)} className={`flex-1 rounded-full py-2 text-base font-bold ${mode === item ? 'bg-white text-orange-600 shadow' : 'text-stone-500'}`}>{item === 'login' ? '登录' : '注册新账号'}</button>)}
-        </div>
-        {mode === 'register' && <div className="mb-3 space-y-3">
-          <input value={name} onChange={(e) => setName(e.target.value.slice(0, 30))} placeholder={role === 'elder' ? '老人姓名' : role === 'family' ? '家属姓名' : '姓名'} className="h-12 w-full rounded-2xl border-2 border-stone-200 bg-white px-5 text-lg" />
-          {role === 'family' && <input value={elderPhone} onChange={(e) => setElderPhone(e.target.value.replace(/\D/g, '').slice(0, 11))} inputMode="numeric" placeholder="要绑定的老人手机号（先注册老人）" className="h-12 w-full rounded-2xl border-2 border-stone-200 bg-white px-5 text-lg" />}
-          {role === 'villager' && <input value={village} onChange={(e) => setVillage(e.target.value.slice(0, 50))} placeholder="所属村镇" className="h-12 w-full rounded-2xl border-2 border-stone-200 bg-white px-5 text-lg" />}
-        </div>}
 
         {/* 手机号 + 验证码 */}
         <input
@@ -141,8 +128,9 @@ export default function Login() {
           onClick={login}
           className="mt-6 h-16 w-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-2xl font-bold tracking-widest text-white shadow-lg shadow-orange-500/30 transition active:scale-[0.98]"
         >
-          {mode === 'login' ? '登 录' : '注 册'}
+          登 录
         </button>
+        <button onClick={() => navigate('/register', { state: { role } })} className="mt-3 h-12 w-full rounded-full bg-teal-50 text-lg font-semibold text-teal-700 ring-1 ring-teal-200">✍️ 注册新账号（{ROLES.find((r) => r.key === role)?.label}）</button>
         {!isWorkerConfigured() && <button
           onClick={() => enter(role)}
           className="mt-4 h-14 w-full rounded-full border-2 border-dashed border-orange-300 bg-orange-50/50 text-xl font-semibold text-orange-500 transition active:scale-[0.98]"

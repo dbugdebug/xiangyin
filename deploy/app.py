@@ -1309,6 +1309,8 @@ def validate_register(form):
         return '注册角色不正确'
     if role == 'villager' and not (form.get('village') or '').strip():
         return '请填写所属村镇'
+    if role == 'family' and not PHONE_RE.match((form.get('elder_phone') or '').strip()):
+        return '请填写要绑定的老人手机号'
 
     age = form.get('age')
     if age not in (None, ''):
@@ -1353,6 +1355,14 @@ def register():
     try:
         cursor = db_cursor(conn)
 
+        # 家属账号必须能在同一事务内绑定到已登记老人，避免账号创建成功但关联失败。
+        if role == 'family':
+            elder_phone = (form.get('elder_phone') or '').strip()
+            if not find_elder_by_phone(cursor, elder_phone):
+                conn.rollback()
+                cursor.close()
+                return jsonify({'ok': False, 'message': '没有找到该手机号对应的老人，请确认老人已先注册'}), 400
+
         # 手机号唯一：已注册则拒绝（前端提示"请直接登录"）
         cursor.execute('SELECT id FROM "user" WHERE phone = %s', (phone,))
         if cursor.fetchone():
@@ -1375,6 +1385,13 @@ def register():
             ),
         )
         user_id = cursor.fetchone()['id']
+
+        if role == 'family':
+            _, bind_error, _ = do_bind(cursor, 'family', phone, name, (form.get('elder_phone') or '').strip())
+            if bind_error:
+                conn.rollback()
+                cursor.close()
+                return jsonify({'ok': False, 'message': bind_error}), 400
 
         # 病史单独入 health_profile（有内容才写，节约一条空记录）
         med = (form.get('medical_history') or '').strip()

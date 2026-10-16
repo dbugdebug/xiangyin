@@ -50,6 +50,7 @@ export default function Chat() {
   const messagesRef = useRef<ChatMsg[]>(messages) // 供异步流程读到最新对话
   const busyRef = useRef(false) // 一轮对话未结束前不接受新输入
   const bottomRef = useRef<HTMLDivElement>(null)
+  const conveyedCareIds = useRef(new Set<number>())
 
   const { supported: asrSupported, listen, stop } = useSpeechRecognition({
     onInterim: (t) => setInterim(t),
@@ -74,12 +75,14 @@ export default function Chat() {
 
   // 家属捎话：拉取未转达的关怀留言，以 AI 口吻带入对话（即注入后续对话上下文），并标记已转达
   useEffect(() => {
-    ;(async () => {
+    const loadCareMessages = async () => {
       try {
         const msgs = await api.get<CareMessage[]>(
           `/api/care-messages?elder_id=${getElderId()}&pending=1`,
         )
         for (const m of msgs) {
+          if (conveyedCareIds.current.has(m.id)) continue
+          conveyedCareIds.current.add(m.id)
           append({
             id: uid(),
             from: 'ai',
@@ -91,7 +94,12 @@ export default function Chat() {
       } catch {
         /* 后端未启动时静默降级，老人端照常可用 */
       }
-    })()
+    }
+    void loadCareMessages()
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadCareMessages()
+    }, 10000)
+    return () => window.clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

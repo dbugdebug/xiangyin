@@ -1,6 +1,7 @@
 import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import Login from './pages/Login'
+import Register from './pages/Register'
 import Chat from './pages/Chat'
 import FamilyDashboard from './pages/FamilyDashboard'
 import VillageBoard from './pages/VillageBoard'
@@ -54,6 +55,7 @@ export default function App() {
       <Shell>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route
             path="/chat"
             element={

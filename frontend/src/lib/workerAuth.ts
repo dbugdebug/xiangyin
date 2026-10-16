@@ -79,7 +79,9 @@ export async function verifyPhoneOtp(
     })
   }
 
-  const login = await workerRequest<AuthSession>('/api/demo-login', { phone, code, role, ...details })
+  const login = await workerRequest<AuthSession>('/api/demo-login', {
+    phone, code, role, ...details, registering: action === 'register',
+  })
   const profile = await workerRequest<{ role: Role; elder_id: number | null }>('/api/me', undefined, login.access_token)
   const session: AuthSession = { ...login, role: profile.role, elder_id: profile.elder_id }
   saveAuthSession(session)

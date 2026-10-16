@@ -57,6 +57,9 @@ export default function FamilyDashboard() {
 
   useEffect(() => {
     load()
+    // 其他设备的老人对话、风险上报和村协处置会写入同一后端；定时刷新让联动及时显示。
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load() }, 10000)
+    return () => window.clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
