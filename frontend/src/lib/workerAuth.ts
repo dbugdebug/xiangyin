@@ -1,6 +1,7 @@
 import type { Role } from '../types'
+import { VITE_WORKER_API_URL } from '../config'
 
-const WORKER_URL = (import.meta.env.VITE_WORKER_API_URL as string | undefined)?.trim().replace(/\/+$/, '') ?? ''
+const WORKER_URL = VITE_WORKER_API_URL.replace(/\/+$/, '')
 const SESSION_KEY = 'xy_worker_session'
 const DEMO_ROLE_SWITCH_ENABLED = (import.meta.env.VITE_DEMO_ROLE_SWITCH_ENABLED as string | undefined) === 'true'
 

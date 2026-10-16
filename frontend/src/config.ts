@@ -21,7 +21,8 @@ export const API_KEY =
 
 /** Hosted Worker API root. This is separate from API_BASE_URL, which is the optional LLM endpoint. */
 export const VITE_WORKER_API_URL =
-  (import.meta.env.VITE_WORKER_API_URL as string | undefined)?.trim() || ''
+  (import.meta.env.VITE_WORKER_API_URL as string | undefined)?.trim() ||
+  (import.meta.env.PROD ? 'https://api.ccup.us.ci' : '')
 
 /** 关闭大模型直连（VITE_LLM_ENABLED=0），只用本地 mock 回复 */
 export const LLM_ENABLED = (import.meta.env.VITE_LLM_ENABLED as string | undefined) !== '0'
