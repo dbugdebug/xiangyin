@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import AppHeader from '../components/AppHeader'
 import MoodTrend from '../components/MoodTrend'
 import RiskBadge, { RISK, RISK_ORDER } from '../components/RiskBadge'
+import AlertRiskTag from '../components/AlertRiskTag'
+import AssessmentPanel from '../components/AssessmentPanel'
 import BackendNotice from '../components/BackendNotice'
 import Toast from '../components/Toast'
 import { api, fmtTime } from '../lib/api'
-import type { AlertItem, DailyStat, Elder, Referral, RiskLevel, ScreenStat, Stats } from '../lib/api'
+import type { AlertItem, Assessment, DailyStat, Elder, Referral, RiskLevel, ScreenStat, Stats } from '../lib/api'
 
 /** 处置方式（处置闭环表单 / 预警看板快捷动作） */
 const METHODS = [
@@ -57,6 +59,7 @@ export default function VillageBoard() {
   // 单人详情
   const [detail, setDetail] = useState<{ elder: Elder; daily_stats: DailyStat[] } | null>(null)
   const [detailAlerts, setDetailAlerts] = useState<AlertItem[]>([])
+  const [detailAssessment, setDetailAssessment] = useState<Assessment | null>(null)
   const [expandForm, setExpandForm] = useState<number | null>(null) // 展开处置表单的预警 id
   const [method, setMethod] = useState(METHODS[0])
   const [note, setNote] = useState('')
@@ -103,12 +106,14 @@ export default function VillageBoard() {
     setExpandForm(null)
     setNote('')
     try {
-      const [d, a] = await Promise.all([
+      const [d, a, assess] = await Promise.all([
         api.get<{ elder: Elder; daily_stats: DailyStat[] }>(`/api/elders/${id}`),
         api.get<AlertItem[]>(`/api/alerts?elder_id=${id}`),
+        api.get<Assessment>(`/api/assessment?elder_id=${id}`),
       ])
       setDetail(d)
       setDetailAlerts(a)
+      setDetailAssessment(assess)
     } catch {
       setNotice('详情加载失败，请重试')
     }
@@ -477,11 +482,11 @@ export default function VillageBoard() {
                           {a.elder_name}
                         </button>
                         <span className="text-base text-stone-400">{fmtTime(a.created_at)}</span>
-                        <span className="ml-auto rounded-full bg-orange-50 px-2.5 py-1 text-sm font-semibold text-[#b93f2b]">
-                          {a.keyword}
-                        </span>
                       </div>
-                      <p className="mt-2 text-base leading-relaxed text-stone-700">{a.summary}</p>
+                      {/* 风险描述：只展示「标准分类 + 状态」，无任何老人原话 */}
+                      <div className="mt-2">
+                        <AlertRiskTag category={a.category} status={a.status} />
+                      </div>
 
                       {a.disposal && (
                         <p className="mt-2 rounded-xl bg-[#f7f4ee] px-3 py-2 text-sm leading-relaxed text-stone-500">
@@ -678,6 +683,11 @@ export default function VillageBoard() {
               <MoodTrend days={detail.daily_stats} />
             </div>
 
+            {/* AI 结构化风险评估（五分类，与家属端同口径；不含任何对话原文） */}
+            <div className="mt-4">
+              <AssessmentPanel assessment={detailAssessment} compact />
+            </div>
+
             {/* 预警与处置记录 */}
             <div className="mt-4">
               <p className="text-base font-bold text-stone-700">预警记录与处置闭环</p>
@@ -694,20 +704,11 @@ export default function VillageBoard() {
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-base text-stone-400">{fmtTime(a.created_at)}</span>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-sm font-semibold text-[#b93f2b]">
-                        {a.keyword}
-                      </span>
-                      <span
-                        className={`ml-auto rounded-full px-2.5 py-1 text-sm font-bold ${
-                          a.status === '待处理'
-                            ? 'bg-[#fbe7e2] text-[#b93f2b]'
-                            : 'bg-[#e3f2ec] text-[#20765c]'
-                        }`}
-                      >
-                        {a.status}
-                      </span>
                     </div>
-                    <p className="mt-1.5 text-base leading-relaxed text-stone-700">{a.summary}</p>
+                    {/* 风险描述：只展示「标准分类 + 状态」，无任何老人原话 */}
+                    <div className="mt-1.5">
+                      <AlertRiskTag category={a.category} status={a.status} compact />
+                    </div>
 
                     {/* 历史处置记录：谁在什么时间做了什么 */}
                     {a.disposal && (

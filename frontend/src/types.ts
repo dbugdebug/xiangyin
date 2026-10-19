@@ -80,16 +80,31 @@ export interface Disposal {
   created_at: string
 }
 
+/**
+ * 风险分类（**强制枚举**）
+ * ------------------------------------------------------------
+ * 隐私合规底线：家属端 / 村协管员端对老人风险的展示，**只能**使用这五个标准分类，
+ * 严禁展示老人的原话、逐字记录或任何分类之外的描述性文字。
+ */
+export type RiskCategory =
+  | '情绪与自我价值'
+  | '家庭与社交适应'
+  | '健康与身体状态'
+  | '认知与安全风险'
+  | '经济与生活压力'
+
 /** 风险预警 */
 export interface AlertItem {
   id: number
   elder_id: number
   elder_name: string
   created_at: string
-  /** 命中的风险词 / 消极表达 */
-  keyword: string
-  /** AI 生成的一句话摘要 */
-  summary: string
+  /**
+   * 风险类型：**只能**取五个标准分类之一。
+   * 已彻底删除 keyword（命中的原话/风险词）与 summary（对话摘要）字段，
+   * 预警记录中不再保存、也不再展示任何老人原话。
+   */
+  category: RiskCategory
   status: '待处理' | '已处理'
   /** 严重程度（村协端预警看板排序用；缺省按"高"处理） */
   severity?: 'high' | 'mid'
@@ -118,20 +133,13 @@ export interface Stats {
   high_risk: number
 }
 
-/** 脱敏对话回放的单个气泡 */
-export interface ChatTurn {
-  from: 'elder' | 'ai'
-  text: string
-}
-
-/** 历次对话摘要（家属端 / 村协端"对话摘要"页：只给摘要 + 脱敏气泡回放，不给逐字记录） */
+/** 历次对话摘要（AI 语义抽象后的一句话结论；**不含任何逐字对话内容**） */
 export interface Summary {
   id: number
   elder_id: number
   time: string
   mood: string
   summary: string
-  turns: ChatTurn[]
 }
 
 /** 转介对象类型：乡镇卫生院 / 村医 / 家属 */

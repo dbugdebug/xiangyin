@@ -36,6 +36,54 @@ export function saveAuthSession(session: AuthSession) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
+/* ------------------------------------------------ 数据接口的静默会话 */
+
+/** 演示账号（老人 1 号，与种子库 / 演示数据一致） */
+const DEMO_ELDER_PHONE =
+  (import.meta.env.VITE_DEMO_ELDER_PHONE as string | undefined)?.trim() || '13800000001'
+
+let ensuring: Promise<AuthSession | null> | null = null
+
+/**
+ * 静默建立后端会话 —— 只给数据 / 大模型接口做鉴权，**不参与登录页 UI**（登录注册仍是纯前端模拟）。
+ *
+ * 后端要求 `/api/**` 携带 Bearer：演示环境用固定演示账号走 `/api/demo-login`；
+ * 账号还不存在时先 `/api/register` 建号（该接口后端允许未登录调用），再 demo-login。
+ * 后端未启动 / 未开启演示登录（AUTH_MODE≠demo）时返回 null，调用方自动回退本地演示数据，
+ * 保证「没后端也能演、有后端就真接 AI」。
+ */
+export async function ensureDemoSession(): Promise<AuthSession | null> {
+  if (!WORKER_URL) return null
+  const existing = getAuthSession()
+  if (existing) return existing
+  if (!ensuring) ensuring = silentDemoLogin().finally(() => { ensuring = null })
+  return ensuring
+}
+
+async function silentDemoLogin(): Promise<AuthSession | null> {
+  const body = { phone: DEMO_ELDER_PHONE, code: 'demo', role: 'elder' as Role }
+  try {
+    let login: AuthSession
+    try {
+      login = await workerRequest<AuthSession>('/api/demo-login', body)
+    } catch {
+      // 演示账号还没在库里 → 先建号（后端 /api/register 不要求登录），再换会话
+      await workerRequest('/api/register', {
+        phone: DEMO_ELDER_PHONE,
+        role: 'elder',
+        name: '乡音演示',
+        password: 'xiangyin-demo',
+        confirm_password: 'xiangyin-demo',
+      }).catch(() => undefined)
+      login = await workerRequest<AuthSession>('/api/demo-login', body)
+    }
+    saveAuthSession({ ...login, role: 'elder' })
+    return getAuthSession()
+  } catch {
+    return null
+  }
+}
+
 export function clearAuthSession() {
   try { localStorage.removeItem(SESSION_KEY) } catch { /* storage unavailable */ }
 }

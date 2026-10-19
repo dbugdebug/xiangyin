@@ -15,18 +15,24 @@ const MID_RISK = [
   '难受', '没胃口', '不想吃', '不想动', '冷清', '想孩子', '没滋味', '没意思',
 ]
 
+import type { RiskCategory } from '../types'
+import { categoryFromSignal } from './assessment'
+
+/**
+ * 命中结果：**只输出标准风险分类**，不再输出命中的原话/风险词。
+ * 命中的语义词绝不离开老人端，家属端与村协管员端永远只看到五个分类之一。
+ */
 export interface RiskMatch {
   level: 'high' | 'mid'
-  /** 命中的风险词，用于展示"命中的风险词或消极表达" */
-  keyword: string
+  category: RiskCategory
 }
 
-/** 命中则返回风险等级 + 风险词；未命中返回 null */
+/** 命中则返回风险等级 + 标准风险分类；未命中返回 null */
 export function matchRisk(text: string): RiskMatch | null {
   const high = HIGH_RISK.find((k) => text.includes(k))
-  if (high) return { level: 'high', keyword: high }
+  if (high) return { level: 'high', category: categoryFromSignal(high) }
   const mid = MID_RISK.find((k) => text.includes(k))
-  if (mid) return { level: 'mid', keyword: mid }
+  if (mid) return { level: 'mid', category: categoryFromSignal(mid) }
   return null
 }
 
@@ -35,8 +41,8 @@ export function detectRisk(text: string): 'high' | 'mid' | null {
   return matchRisk(text)?.level ?? null
 }
 
-/** 风险等级 → 展示文案 */
-export const RISK_KEYWORD_LABEL: Record<'high' | 'mid', string> = {
-  high: '疑似轻生 / 绝望表达',
-  mid: '情绪低落 / 孤独表达',
+/** 风险等级 → 展示文案（不含任何老人原话） */
+export const RISK_LEVEL_LABEL: Record<'high' | 'mid', string> = {
+  high: '高风险',
+  mid: '需关注',
 }

@@ -11,7 +11,6 @@ import { clearRole, getElderId, getRole, ROLE_LABEL } from '../lib/session'
 import ChatBubble from '../components/ChatBubble'
 import MicButton from '../components/MicButton'
 import StatusBar from '../components/StatusBar'
-import CallFamilyModal from '../components/CallFamilyModal'
 import Toast from '../components/Toast'
 import RoleSwitch from '../components/RoleSwitch'
 
@@ -31,7 +30,7 @@ function greetingByTime(): string {
 
 /**
  * 语音对话主页（产品核心页）：
- * 顶栏（对话对象 + 问候）→ 呼叫家人常驻入口 → 气泡对话流 → 底部大麦克风按钮。
+ * 顶栏（对话对象 + 问候）→ 气泡对话流 → 底部大麦克风按钮。
  * 一轮对话四态：聆听中 → 识别中 → 回复生成中 → 播放中。
  */
 export default function Chat() {
@@ -45,7 +44,6 @@ export default function Chat() {
   const [playingId, setPlayingId] = useState<string | null>(null)
   const [showText, setShowText] = useState(false)
   const [text, setText] = useState('')
-  const [callOpen, setCallOpen] = useState(false)
 
   const messagesRef = useRef<ChatMsg[]>(messages) // 供异步流程读到最新对话
   const busyRef = useRef(false) // 一轮对话未结束前不接受新输入
@@ -128,8 +126,8 @@ export default function Chat() {
         api
           .post('/api/risk-report', {
             elder_id: getElderId(),
-            keyword: risk.keyword,
-            summary: risk.summary,
+            // 只上报标准风险分类（五大类之一），老人原话不出本端
+            category: risk.category,
           })
           .catch(() => {})
       }
@@ -246,16 +244,6 @@ export default function Chat() {
         </div>
       </header>
 
-      {/* ===== "一键呼叫家人"常驻入口（求助 / 转介功能）===== */}
-      <div className="shrink-0 px-4 pt-3">
-        <button
-          onClick={() => setCallOpen(true)}
-          className="h-14 w-full rounded-2xl bg-gradient-to-r from-rose-500 to-orange-500 text-xl font-bold text-white shadow-lg shadow-rose-300/40 transition active:scale-[0.99]"
-        >
-          📞 需要帮助？一键呼叫家人
-        </button>
-      </div>
-
       {/* ===== 气泡式对话流 ===== */}
       <main className="flex-1 space-y-5 overflow-y-auto px-4 py-5">
         {messages.map((m) => (
@@ -313,7 +301,6 @@ export default function Chat() {
       </footer>
 
       <Toast text={notice} />
-      <CallFamilyModal open={callOpen} onClose={() => setCallOpen(false)} />
     </div>
   )
 }

@@ -21,16 +21,21 @@ export default function RoleSwitch({ compact = false }: { compact?: boolean }) {
   const navigate = useNavigate()
   const cur = getRole()
   const onlineAuth = isWorkerConfigured()
-  if (onlineAuth && !isDemoRoleSwitchEnabled()) return null
+  /** 服务端演示账号切换需要后端开启开关；否则只切换本地 UI 角色（后端数据接口本身不分角色） */
+  const serverSwitch = onlineAuth && isDemoRoleSwitchEnabled()
 
   const jump = async (r: Role) => {
     if (busy || r === cur) return
     setBusy(true)
     setError('')
     try {
-      if (onlineAuth) {
-        const session = await switchDemoRole(r)
-        setElderId(session.elder_id)
+      if (serverSwitch) {
+        try {
+          const session = await switchDemoRole(r)
+          setElderId(session.elder_id ?? null)
+        } catch {
+          /* 服务端切换不可用时退回本地切换，保证路演永远能演示 */
+        }
       }
       setRole(r)
       setOpen(false)
