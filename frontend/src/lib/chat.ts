@@ -12,14 +12,18 @@
 import { API_BASE_URL, API_KEY, API_MODEL, LLM_ENABLED, PROBE_TIMEOUT, REQUEST_TIMEOUT, SYSTEM_PROMPT } from '../config'
 import { mockReply } from './mock'
 import { matchRisk } from './risk'
+import { asRiskCategory, categoryFromSignal } from './assessment'
 import { getElderId } from './session'
-import type { ChatMsg } from '../types'
+import type { ChatMsg, RiskCategory } from '../types'
 import { apiRequest } from './api'
 import { isWorkerConfigured } from './workerAuth'
 
+/**
+ * 上报给家属端 / 村协管员端的风险信息。
+ * 隐私底线：**只有标准风险分类**，不含任何老人原话、不含对话摘要。
+ */
 export interface ChatRisk {
-  keyword: string
-  summary: string
+  category: RiskCategory
 }
 
 export interface ChatResult {
@@ -85,8 +89,9 @@ export async function chat(history: ChatMsg[]): Promise<ChatResult> {
           text: String(d.ai_reply),
           offline: Boolean(d.offline),
           viaBackend: true,
+          // 后端若已给出分类则直接用，否则按本地语义信号归类（绝不透传原文）
           risk: d.risk
-            ? { keyword: String(d.reason ?? '消极情绪表达'), summary: String(d.ai_reply).slice(0, 60) }
+            ? { category: d.category ? asRiskCategory(d.category) : categoryFromSignal(lastUser) }
             : undefined,
         }
     }
@@ -146,14 +151,11 @@ export async function chat(history: ChatMsg[]): Promise<ChatResult> {
     if (text.includes(RISK_MARKER)) {
       text = text.split(RISK_MARKER).join('').trim()
       const m = matchRisk(lastUser)
-      risk = {
-        keyword: m ? `${m.keyword}（${m.level === 'high' ? '疑似轻生 / 绝望表达' : '情绪低落'}）` : '消极情绪表达',
-        summary: text.slice(0, 60),
-      }
+      risk = { category: m ? m.category : categoryFromSignal(lastUser) }
     } else {
       // 模型偶尔漏标记：本地关键词兜底再筛一次，保证演示动线稳定触发
       const m = matchRisk(lastUser)
-      if (m) risk = { keyword: m.keyword, summary: text.slice(0, 60) }
+      if (m) risk = { category: m.category }
     }
     return { text, offline: false, risk }
   } catch {
@@ -170,8 +172,6 @@ function offlineResult(lastUser: string): ChatResult {
   return {
     text,
     offline: true,
-    risk: m
-      ? { keyword: m.keyword, summary: text.slice(0, 60) }
-      : undefined,
+    risk: m ? { category: m.category } : undefined,
   }
 }

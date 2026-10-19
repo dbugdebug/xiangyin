@@ -217,16 +217,13 @@
     "elder_id": 1,
     "time": "2026-10-12 09:30",
     "mood": "平和",
-    "summary": "今天主要聊了庄稼收成，情绪平稳",
-    "turns": [
-      { "from": "elder", "text": "今年雨水好" },
-      { "from": "ai", "text": "那您心里也踏实些了" }
-    ]
+    "summary": "今天主要聊了庄稼收成，情绪平稳"
   }
 ]
 ```
 
-> 注意：这里只返回**脱敏后的少量气泡回放**，不返回完整逐字对话记录。
+> 隐私红线：该接口**不再返回任何逐字对话内容**（`turns` 字段已移除）。
+> 子女端 / 社区端一律只呈现 AI 语义分析后的结构化结论，详见下方 `/api/assessment`。
 
 ---
 
@@ -331,10 +328,50 @@
 | `AlertItem` | `id, elder_id, elder_name, created_at, keyword, summary, status, severity, disposal` |
 | `Disposal` | `id, alert_id, method, note, handler, created_at` |
 | `CareMessage` | `id, elder_id, content, conveyed, created_at` |
-| `Summary` | `id, elder_id, time, mood, summary, turns` |
+| `Summary` | `id, elder_id, time, mood, summary`（**无逐字内容**） |
 | `Referral` | `id, elder_id, elder_name, target, time, status` |
 | `Stats` | `total, today_active, pending_alerts, weekly_new_risks, high_risk` |
 | `ScreenStat` | `total, screened, rate, byLevel` |
+
+---
+
+## 结构化风险评估 `GET /api/assessment?elder_id=1`
+
+家属端 / 村协管员端展示老人状态的**唯一数据来源**（替代原先的"对话回放"）。
+只返回 AI 对老人话语做语义分析后得出的**结构化结论**，不含任何原始对话内容。
+
+```json
+{
+  "elder_id": 1,
+  "elder_name": "王桂兰",
+  "updated_at": "2026-10-18 15:40",
+  "overall": "red",
+  "conclusion": "综合评估：高风险。当前风险主要集中在「情绪与自我价值、家庭与社交适应」，建议优先跟进。",
+  "dimensions": [
+    {
+      "key": "emotion",
+      "title": "情绪与自我价值",
+      "icon": "💗",
+      "level": "red",
+      "levelLabel": "高风险",
+      "points": ["情绪走向：近 7 天情绪均值 -1.2（区间 -2 ~ +2）", "陪伴强度：近 7 天对话 18 轮 / 约 42 分钟"],
+      "advice": "建议 48 小时内家属致电问候 + 村协上门探访，必要时转介乡镇卫生院心理门诊"
+    }
+  ]
+}
+```
+
+五个维度固定为：
+
+| key | 维度 |
+| --- | --- |
+| `emotion` | 情绪与自我价值 |
+| `family` | 家庭与社交适应 |
+| `health` | 健康与身体状态 |
+| `cognition` | 认知与安全风险 |
+| `economy` | 经济与生活压力 |
+
+等级：`red` 高风险 / `yellow` 需关注 / `green` 平稳；`overall` 取五维度中最高一档。
 
 ---
 

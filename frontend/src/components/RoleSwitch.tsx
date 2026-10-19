@@ -30,7 +30,7 @@ export default function RoleSwitch({ compact = false }: { compact?: boolean }) {
     try {
       if (onlineAuth) {
         const session = await switchDemoRole(r)
-        setElderId(session.elder_id)
+        setElderId(session.elder_id ?? null)
       }
       setRole(r)
       setOpen(false)

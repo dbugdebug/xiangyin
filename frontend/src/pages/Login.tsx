@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import Logo from '../components/Logo'
 import RoleCard from '../components/RoleCard'
 import Toast from '../components/Toast'
-import { setElderId, setRole, ROUTE_BY_ROLE } from '../lib/session'
+import { setRole, ROUTE_BY_ROLE } from '../lib/session'
 import type { Role } from '../types'
-import { isWorkerConfigured, sendPhoneOtp, verifyPhoneOtp } from '../lib/workerAuth'
+
+/**
+ * ⚠️ 演示约束：登录仅做前端模拟（校验通过 → 进入对应端），不发送任何 API 请求。
+ */
 
 const ROLES: Array<{ key: Role; emoji: string; label: string; desc: string }> = [
   { key: 'elder', emoji: '👴', label: '老人', desc: '唠嗑 · 陪伴' },
@@ -49,24 +52,15 @@ export default function Login() {
     return () => clearTimeout(t)
   }, [notice])
 
-  const sendCode = async () => {
+  /** 验证码：纯前端演示，只做倒计时，不发短信 */
+  const sendCode = () => {
     if (countdown > 0) return
     if (!/^1\d{10}$/.test(phone)) {
       setNotice('请先输入 11 位手机号')
       return
     }
-    if (!isWorkerConfigured()) {
-      setCountdown(60)
-      setNotice('演示模式：验证码可随便填写')
-      return
-    }
-    try {
-      await sendPhoneOtp(`+86${phone}`)
-      setCountdown(60)
-      setNotice('演示验证码已就绪：输入任意数字，不会发送短信')
-    } catch (e) {
-      setNotice(e instanceof Error ? e.message : '验证码发送失败，请稍后重试')
-    }
+    setCountdown(60)
+    setNotice('演示验证码已就绪：输入任意数字即可')
   }
 
   /** 登录 / 体验成功：记录角色（localStorage），并按角色自动跳转到对应端 */
@@ -75,7 +69,8 @@ export default function Login() {
     navigate(ROUTE_BY_ROLE[r])
   }
 
-  const login = async () => {
+  /** 登录：纯前端模拟——格式校验通过即成功，失败只在界面上提示，不发任何请求 */
+  const login = () => {
     if (!/^1\d{10}$/.test(phone)) {
       setNotice('手机号好像没填对，请再看看')
       return
@@ -84,14 +79,7 @@ export default function Login() {
       setNotice('请填一下收到的验证码')
       return
     }
-    if (!isWorkerConfigured()) { enter(role); return }
-    try {
-      const session = await verifyPhoneOtp(phone, code.trim(), role, 'login')
-      setElderId(session.elder_id ?? null)
-      enter(session.role as Role)
-    } catch (e) {
-      setNotice(e instanceof Error ? e.message : '登录失败，请检查验证码或账号配置')
-    }
+    enter(role)
   }
 
   return (
@@ -131,12 +119,12 @@ export default function Login() {
           登 录
         </button>
         <button onClick={() => navigate('/register', { state: { role } })} className="mt-3 h-12 w-full rounded-full bg-teal-50 text-lg font-semibold text-teal-700 ring-1 ring-teal-200">✍️ 注册新账号（{ROLES.find((r) => r.key === role)?.label}）</button>
-        {!isWorkerConfigured() && <button
+        <button
           onClick={() => enter(role)}
           className="mt-4 h-14 w-full rounded-full border-2 border-dashed border-orange-300 bg-orange-50/50 text-xl font-semibold text-orange-500 transition active:scale-[0.98]"
         >
           🚶 一键进入体验（演示模式）
-        </button>}
+        </button>
 
         {/* 角色选择：大卡片点选 */}
         <div className="mt-9">
@@ -158,7 +146,7 @@ export default function Login() {
 
       {/* 隐私声明 */}
       <p className="shrink-0 px-6 pb-5 text-center text-base leading-relaxed text-stone-400">
-        {isWorkerConfigured() ? '🔒 登录后数据通过 Cloudflare Workers 与 Supabase 数据库处理' : '🔒 本 Demo 仅用于原型演示，数据不上传，隐私信息不会被收集'}
+        🔒 本 Demo 仅用于原型演示，登录/注册只做前端模拟，数据不上传、不发送短信
       </p>
 
       <Toast text={notice} />

@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react'
 import AppHeader from '../components/AppHeader'
 import MoodTrend from '../components/MoodTrend'
 import RiskBadge from '../components/RiskBadge'
+import AlertRiskTag from '../components/AlertRiskTag'
+import AssessmentPanel from '../components/AssessmentPanel'
 import BackendNotice from '../components/BackendNotice'
 import Toast from '../components/Toast'
 import { api, fmtTime } from '../lib/api'
-import type { AlertItem, DailyStat, Elder, Summary } from '../lib/api'
+import type { AlertItem, Assessment, DailyStat, Elder } from '../lib/api'
 import { getElderId } from '../lib/session'
 
 /** 今日活跃日期（本地时区） */
@@ -17,9 +19,10 @@ function todayStr(): string {
 /**
  * 家属端（FamilyDashboard）：单个老人的亲情视角。
  * 亲情卡片 → 今日陪伴概况 → AI 陪聊小结 → 情绪趋势 → 主动关怀（留言 / 快捷关怀 / 电话提醒）
- * → 风险预警（一键回拨 / 标记已处理）→ 对话摘要（脱敏，点击看气泡回放）→ 联系村协管员。
+ * → 风险预警（一键回拨 / 标记已处理）→ **AI 结构化风险评估（五分类）** → 联系村协管员。
  *
- * 伦理设计（答辩加分点）：本端**只展示 AI 生成的情绪与话题摘要**，不展示老人的逐字对话记录。
+ * 伦理设计（答辩加分点）：本端**只展示 AI 语义分析后的结构化结论**（五分类维度 + 建议动作），
+ * 不展示老人的逐字对话记录、也不提供任何"对话回放"。
  */
 export default function FamilyDashboard() {
   const [error, setError] = useState(false)
@@ -27,8 +30,7 @@ export default function FamilyDashboard() {
   const [elder, setElder] = useState<Elder | null>(null)
   const [stats, setStats] = useState<DailyStat[]>([])
   const [alerts, setAlerts] = useState<AlertItem[]>([])
-  const [summaries, setSummaries] = useState<Summary[]>([])
-  const [openSummary, setOpenSummary] = useState<number | null>(null)
+  const [assessment, setAssessment] = useState<Assessment | null>(null)
   const [careText, setCareText] = useState('')
   const [careSent, setCareSent] = useState(false)
   const [quickSent, setQuickSent] = useState('')
@@ -39,15 +41,15 @@ export default function FamilyDashboard() {
   const load = async () => {
     setError(false)
     try {
-      const [detail, alertList, summaryList] = await Promise.all([
+      const [detail, alertList, assess] = await Promise.all([
         api.get<{ elder: Elder; daily_stats: DailyStat[] }>(`/api/elders/${getElderId()}`),
         api.get<AlertItem[]>(`/api/alerts?elder_id=${getElderId()}`),
-        api.get<Summary[]>(`/api/summaries?elder_id=${getElderId()}`),
+        api.get<Assessment>(`/api/assessment?elder_id=${getElderId()}`),
       ])
       setElder(detail.elder)
       setStats(detail.daily_stats)
       setAlerts(alertList)
-      setSummaries([...summaryList].reverse()) // 最近的在前
+      setAssessment(assess)
       setLoaded(true)
     } catch {
       setError(true)
@@ -331,20 +333,11 @@ export default function FamilyDashboard() {
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-base text-stone-400">{fmtTime(a.created_at)}</span>
-                      <span className="rounded-full bg-white px-2.5 py-1 text-sm font-semibold text-[#b93f2b]">
-                        {a.keyword}
-                      </span>
-                      <span
-                        className={`ml-auto rounded-full px-2.5 py-1 text-sm font-bold ${
-                          a.status === '待处理'
-                            ? 'bg-[#fbe7e2] text-[#b93f2b]'
-                            : 'bg-[#e3f2ec] text-[#20765c]'
-                        }`}
-                      >
-                        {a.status}
-                      </span>
                     </div>
-                    <p className="mt-1.5 text-base leading-relaxed text-stone-700">{a.summary}</p>
+                    {/* 风险描述：只展示「标准分类 + 状态」，无任何老人原话 */}
+                    <div className="mt-1.5">
+                      <AlertRiskTag category={a.category} status={a.status} compact />
+                    </div>
                     {a.status === '待处理' ? (
                       <div className="mt-2 flex flex-wrap gap-2">
                         <button
@@ -372,67 +365,10 @@ export default function FamilyDashboard() {
               </div>
             </section>
 
-            {/* ===== 对话摘要（脱敏：只给摘要 + 点击查看气泡回放）===== */}
-            <section className="md:col-span-2 rounded-2xl border border-orange-100 bg-white p-4 shadow-sm md:p-5">
-              <p className="text-base font-bold text-stone-700">对话摘要（历次）</p>
-              <p className="mt-0.5 text-sm text-stone-400">点击任一条，查看 AI 脱敏后的对话回放</p>
-              <div className="mt-3 space-y-2">
-                {summaries.length === 0 && <p className="text-base text-stone-400">暂无摘要</p>}
-                {summaries.map((s) => (
-                  <div key={s.id} className="overflow-hidden rounded-2xl border border-orange-100 bg-orange-50/40">
-                    <button
-                      onClick={() => setOpenSummary((v) => (v === s.id ? null : s.id))}
-                      className="flex w-full items-start gap-2 p-3 text-left transition active:scale-[0.99]"
-                    >
-                      <span className="shrink-0 text-base font-semibold text-stone-400">{s.time}</span>
-                      <span
-                        className={`shrink-0 rounded-full px-2 py-0.5 text-sm font-bold ${
-                          s.mood === '低落' || s.mood === '需关注'
-                            ? 'bg-[#fbe7e2] text-[#b93f2b]'
-                            : 'bg-[#e3f2ec] text-[#20765c]'
-                        }`}
-                      >
-                        {s.mood}
-                      </span>
-                      <span className="min-w-0 flex-1 text-base leading-relaxed text-stone-700">
-                        {s.summary}
-                      </span>
-                      <span className="shrink-0 text-stone-400">{openSummary === s.id ? '▲' : '▼'}</span>
-                    </button>
-                    {openSummary === s.id && (
-                      <div className="bubble-in space-y-2 border-t border-orange-100 bg-white p-3">
-                        {s.turns.length === 0 ? (
-                          <p className="text-base text-stone-400">
-                            该条来自系统自动预警，无对话回放内容。
-                          </p>
-                        ) : (
-                          s.turns.map((t, i) => (
-                            <div
-                              key={i}
-                              className={`flex ${t.from === 'elder' ? 'justify-end' : 'justify-start'}`}
-                            >
-                              <span
-                                className={`max-w-[80%] rounded-2xl px-3 py-2 text-base leading-relaxed ${
-                                  t.from === 'elder'
-                                    ? 'rounded-tr-sm bg-orange-100 text-stone-700'
-                                    : 'rounded-tl-sm bg-stone-100 text-stone-600'
-                                }`}
-                              >
-                                {t.text}
-                              </span>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              <p className="mt-4 border-t border-orange-50 pt-3 text-sm leading-relaxed text-stone-400">
-                🔒 隐私与尊严设计：为尊重老人隐私，家属端仅展示 AI 生成的情绪与话题摘要（脱敏回放），
-                不提供老人的完整逐字对话记录。该脱敏策略可在后续版本交由老人自主授权开放。
-              </p>
-            </section>
+            {/* ===== AI 结构化风险评估（五分类）===== */}
+            <div className="md:col-span-2">
+              <AssessmentPanel assessment={assessment} />
+            </div>
 
             {/* ===== 联系村协管员（家属 ↔ 村协联动）===== */}
             <section className="md:col-span-2 flex flex-wrap items-center gap-3 rounded-2xl border border-teal-100 bg-[#e9f6f1] p-4 md:p-5">

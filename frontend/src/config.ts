@@ -19,10 +19,15 @@ export const API_MODEL =
 export const API_KEY =
   (import.meta.env.VITE_API_KEY as string | undefined)?.trim() || ''
 
-/** Hosted Worker API root. This is separate from API_BASE_URL, which is the optional LLM endpoint. */
+/**
+ * Hosted Worker API root. This is separate from API_BASE_URL, which is the optional LLM endpoint.
+ *
+ * 交付说明：本交付包定位为**纯前端离线演示**（双击 index.html 即可完整演示三端），
+ * 因此这里**默认为空**（isWorkerConfigured() = false → 全部走本地演示数据层 demoStore）。
+ * 若日后需要接真实后端，在项目根目录 .env 里配 VITE_WORKER_API_URL 即可，无需改代码。
+ */
 export const VITE_WORKER_API_URL =
-  (import.meta.env.VITE_WORKER_API_URL as string | undefined)?.trim() ||
-  (import.meta.env.PROD ? 'https://api.ccup.us.ci' : '')
+  (import.meta.env.VITE_WORKER_API_URL as string | undefined)?.trim() || ''
 
 /** 关闭大模型直连（VITE_LLM_ENABLED=0），只用本地 mock 回复 */
 export const LLM_ENABLED = (import.meta.env.VITE_LLM_ENABLED as string | undefined) !== '0'

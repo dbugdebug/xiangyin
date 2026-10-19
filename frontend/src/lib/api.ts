@@ -10,6 +10,7 @@
  * 将来若需接真实后端，只需把下方 mockRoute 换成 fetch，**页面代码零改动**。
  */
 import * as store from './demoStore'
+import { asRiskCategory, buildAssessment } from './assessment'
 import { getValidAuthSession, isWorkerConfigured } from './workerAuth'
 import { VITE_WORKER_API_URL } from '../config'
 
@@ -17,16 +18,18 @@ import { VITE_WORKER_API_URL } from '../config'
 export type {
   AlertItem,
   CareMessage,
-  ChatTurn,
   DailyStat,
   Disposal,
   Elder,
   Referral,
+  RiskCategory,
   RiskLevel,
   ScreenStat,
   Stats,
   Summary,
 } from '../types'
+export type { Assessment, AssessmentDimension, DimensionKey } from './assessment'
+export { CATEGORY_ICON, RISK_CATEGORIES } from './assessment'
 
 /** 后端在线 = true；离线时自动回退演示数据（USING_MOCK 仅表示"存在本地演示层"） */
 export const USING_MOCK = true
@@ -81,6 +84,15 @@ function mockRoute<R>(method: 'GET' | 'POST', path: string, body?: unknown): Pro
         case p === '/api/summaries':
           result = store.listSummaries(toNum(q.get('elder_id')))
           break
+        // 结构化风险评估（五分类）：只返回 AI 语义分析结论，不含任何对话原文
+        case p === '/api/assessment': {
+          const id = toNum(q.get('elder_id')) ?? 1
+          const elder = store.getElder(id)
+          result = elder
+            ? buildAssessment(elder, store.elderDailyStats(id), store.listAlerts({ elder_id: id }))
+            : null
+          break
+        }
         case p === '/api/referrals':
           result = store.listReferrals()
           break
@@ -113,8 +125,7 @@ function mockRoute<R>(method: 'GET' | 'POST', path: string, body?: unknown): Pro
           ok: true,
           alert_id: store.reportRisk({
             elder_id: Number(b.elder_id),
-            keyword: String(b.keyword ?? '消极情绪表达'),
-            summary: String(b.summary ?? ''),
+            category: asRiskCategory(b.category),
           }).id,
         }
         break
