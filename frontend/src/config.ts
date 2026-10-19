@@ -20,14 +20,52 @@ export const API_KEY =
   (import.meta.env.VITE_API_KEY as string | undefined)?.trim() || ''
 
 /**
- * Hosted Worker API root. This is separate from API_BASE_URL, which is the optional LLM endpoint.
- *
- * 交付说明：本交付包定位为**纯前端离线演示**（双击 index.html 即可完整演示三端），
- * 因此这里**默认为空**（isWorkerConfigured() = false → 全部走本地演示数据层 demoStore）。
- * 若日后需要接真实后端，在项目根目录 .env 里配 VITE_WORKER_API_URL 即可，无需改代码。
+ * 后端 API 根地址（与上面的 LLM 直连地址是两回事）。
+ * ================================================================
+ * 解析顺序（越靠前优先级越高）：
+ *   1. 构建时环境变量 VITE_WORKER_API_URL（.env / .env.local / Pages 环境变量）；
+ *   2. 运行时临时指定：地址栏加 `?api=http://127.0.0.1:5000`，会记住到 localStorage（`xy_api_base`），
+ *      传 `?api=` 可清除。路演现场换机器/换 IP 时不用重新构建；
+ *   3. 页面本身由后端一体化托管（http/https 同源）→ 直接用同源，请求走相对路径 /api/*；
+ *   4. 双击 index.html（file://）且上面都没有 → 返回空，isWorkerConfigured() = false，
+ *      全部走本地演示数据层 demoStore（离线兜底，画面完全一致）。
  */
+const API_BASE_LS_KEY = 'xy_api_base'
+
+function normalizeUrl(v: string): string {
+  return v.trim().replace(/\/+$/, '')
+}
+
+/** 运行时通过 ?api= 覆盖，并持久化到 localStorage */
+function runtimeApiBase(): string {
+  try {
+    const raw = new URLSearchParams(window.location.search).get('api')
+    if (raw !== null) {
+      const v = normalizeUrl(raw)
+      if (v) window.localStorage.setItem(API_BASE_LS_KEY, v)
+      else window.localStorage.removeItem(API_BASE_LS_KEY)
+      return v
+    }
+    return normalizeUrl(window.localStorage.getItem(API_BASE_LS_KEY) || '')
+  } catch {
+    return ''
+  }
+}
+
+/** 页面被后端一体化托管时（同源，且是构建产物而非 vite dev）可直接用相对路径访问 /api/* */
+function sameOriginBase(): string {
+  try {
+    if (!import.meta.env.PROD) return ''
+    return /^https?:$/.test(window.location.protocol) ? window.location.origin : ''
+  } catch {
+    return ''
+  }
+}
+
 export const VITE_WORKER_API_URL =
-  (import.meta.env.VITE_WORKER_API_URL as string | undefined)?.trim() || ''
+  normalizeUrl((import.meta.env.VITE_WORKER_API_URL as string | undefined) || '') ||
+  runtimeApiBase() ||
+  sameOriginBase()
 
 /** 关闭大模型直连（VITE_LLM_ENABLED=0），只用本地 mock 回复 */
 export const LLM_ENABLED = (import.meta.env.VITE_LLM_ENABLED as string | undefined) !== '0'

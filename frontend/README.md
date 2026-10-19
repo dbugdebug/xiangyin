@@ -275,60 +275,63 @@ xiangyin-prototype/
 
 ---
 
-## 九、本轮改造：适老化语音 + 隐私保护 + 纯前端模拟
+## 九、演示版改造说明（离线演示 + 真接后端）
 
-> 目标：把原有的注册内容整合进「注册新账号」，并让演示完全不依赖任何后端。
+> 目标：**没有后端也能演，有后端就真接 AI**；三端画面与交互保持不变。
 
-### 1. 注册 / 登录：纯前端模拟（无任何后端）
+### 1. 注册 / 登录：纯前端模拟（不新增任何后端接口）
 
-- {BT}{BT}{BT}src/pages/Register.tsx{BT}{BT}{BT}（重写）：三角色页签 —— 老人 / 家属 / 村协管员。
-  - 老人：姓名*、密码*、确认密码*、手机号*；（选填）年龄、性别、**居住情况**、**所属村**、**住所位置**、过往病史、紧急联系人姓名/电话
-  - 家属：姓名*、手机号*、验证码、密码*、确认密码* —— **只做身份注册，无任何绑定内容**
+- `src/pages/Register.tsx`（重写）：三角色页签 —— 老人 / 家属 / 村协管员
+  - 老人：姓名\*、密码\*、确认密码\*、手机号\*；（选填）年龄、性别、**居住情况**、**所属村**、**住所位置**、过往病史、紧急联系人姓名/电话
+  - 家属：姓名\*、手机号\*、验证码、密码\*、确认密码\* —— **只做身份注册，无任何绑定内容**
   - 村协管员：家属字段 + **所属村镇**（必填）
-  - 通用：手机号 11 位校验、验证码 60 秒倒计时（演示任意数字）、密码 >=6 位且两次一致
-  - 点击「注册并登录」→ **只做前端模拟**：校验通过提示"注册成功"并自动进入对应端；失败 / 演示号段已占用 → 红字反馈
-- {BT}{BT}{BT}src/pages/Login.tsx{BT}{BT}{BT}：移除 Worker 的短信验证码 / 登录请求，登录同样是纯前端模拟（校验通过即进入）。
-- **未新增任何登录/注册相关的后端接口、API 请求、数据库操作或路由守卫。**
+  - 通用：手机号 11 位校验、验证码 60 秒倒计时（演示任意数字）、密码 ≥6 位且两次一致
+- `src/pages/Login.tsx`：登录同样纯前端模拟，校验通过即按角色跳转。
+- **登录/注册链路没有任何后端接口、API 请求、数据库操作或路由守卫。**
 
-### 2. 老人端：极致适老化 + 全语音交互
+### 2. 数据层：后端优先，离线兜底
 
-| 改造点 | 实现 |
-| --- | --- |
-| 删除「一键呼叫家人」 | 移除常驻按钮与 CallFamilyModal.tsx（组件文件已删除） |
-| 屏蔽键盘输入 | 移除"不方便说话？点这里打字"入口与输入框，页面**零 input** |
-| 免按键语音唤醒 | useSpeechRecognition.ts 重写为 useContinuousSpeech：continuous=true + 引擎自动重启，进入页面即常开监听，老人**直接开口**即可被识别 |
-| 自动播报 | 识别完成后系统**自动**朗读（中文音色、语速 0.9），气泡上的播放按钮已移除 |
-| 语音打断 | src/lib/voiceGuard.ts 做 TTS 回声过滤：播报期间麦克风会听到自己的声音，判定为回声则忽略；一旦判定为老人开口 → **立刻停止播报**并重新识别最新指令 |
-| 状态提示 | StatusBar 空闲态改为"乡音听着呢，您直接开口说话就行 / 无需点任何按钮 · 也不用打字" |
+`src/lib/api.ts` 保持页面统一的 `api.get / api.post`，内部做三件事：
 
-### 3. 子女端 / 社区端：隐私保护 + 五分类结构化风险评估
+1. **接后端**：后端地址可用时，所有业务请求走真实 `/api/*`（老人档案、预警、处置闭环、关怀留言、活跃上报、`/api/chat` 大模型对话）；
+2. **隐私收敛**：后端 `alerts` 表里的 `keyword / summary`（可能含老人原话）**一律丢弃**，只在本地折算成五个标准分类之一，前端拿到的永远只有「风险类型 + 状态」；
+3. **离线兜底**：后端没启动 / 未开演示登录时，自动回退 `demoStore` 本地演示数据，**画面完全一致**，双击 `index.html` 也能演。
 
-- **绝不暴露原始对话**：Summary.turns 字段与 ChatTurn 类型已删除，demoStore 中所有逐字气泡数据已清除，家属端的"对话回放"整段移除。
-- **五分类结构化评估**（src/lib/assessment.ts，严格按需求分类）：
-  ① 情绪与自我价值 · ② 家庭与社交适应 · ③ 健康与身体状态 · ④ 认知与安全风险 · ⑤ 经济与生活压力
-  - 每个维度输出：等级（高风险 / 需关注 / 平稳）+ 2~3 条**结构化观察要点**（语义分析结论，非原文）+ 建议动作
-  - overall 取五维度最高档，并给出一句话综合结论
-- src/components/AssessmentPanel.tsx：家属端整页展示；村协端单人详情弹层内以紧凑模式展示同一口径。
-- 子女端 / 社区端**没有任何"绑定老人"按键**。
+后端地址解析顺序（见 `src/config.ts`）：
 
-### 4. 离线演示
+| 优先级 | 方式 | 适用场景 |
+| --- | --- | --- |
+| 1 | 构建变量 `VITE_WORKER_API_URL` | 固定部署 / Cloudflare Worker |
+| 2 | 地址栏 `?api=http://127.0.0.1:5000`（记住到 localStorage，传 `?api=` 清除） | 路演临时换机器 / 换 IP，免重新构建 |
+| 3 | 页面由后端一体化托管（同源 + 构建产物） | 后端把 `dist` 放进 `deploy/frontend_dist` |
+| 4 | 以上都没有（`file://` 双击） | 纯离线演示，走 demoStore |
 
-- src/config.ts：VITE_WORKER_API_URL 默认改为空 → isWorkerConfigured()=false，三端全部走本地 demoStore，**不联网、不依赖任何后端**。
-- 构建产物 index.html 的脚本由 type="module" 改为 defer，**双击 index.html 即可演示**（file:// 协议不白屏）。
+### 3. 后端鉴权（不经过登录页）
 
-### 5. 本轮新增 / 删除文件
+后端 `/api/**` 要求 Bearer。演示版在 `workerAuth.ts` 里做**静默会话**：用固定演示账号 `13800000001`（种子库的王桂兰）调 `/api/demo-login`；账号不存在时先 `/api/register` 建号再换会话。整个过程不弹窗、不影响登录页 UI。
+
+后端需开启演示登录（不修改后端代码，只配环境变量）：
+
+```bash
+AUTH_MODE=demo
+DEMO_AUTH_SECRET=<任意随机串>
+```
+
+### 4. 五分类风险评估
+
+- 后端没有 `/api/assessment` 路由（契约里有，代码里未实现），前端用 `GET /api/elders/:id` + `GET /api/alerts?elder_id=` 的数据，在 `lib/assessment.ts` 里按同一口径现算，**页面表现完全一致**。
+- 五个维度：① 情绪与自我价值 ② 家庭与社交适应 ③ 健康与身体状态 ④ 认知与安全风险 ⑤ 经济与生活压力。
+
+### 5. 本轮改动文件
 
 | 文件 | 说明 |
 | --- | --- |
-| src/lib/assessment.ts | **新增**：五分类结构化风险评估（纯结构化输出，无对话原文） |
-| src/components/AssessmentPanel.tsx | **新增**：五分类评估面板（家属端 / 村协端共用） |
-| src/lib/voiceGuard.ts | **新增**：TTS 回声过滤 + 打断确认 |
-| src/hooks/useSpeechRecognition.ts | 重写为常开监听 useContinuousSpeech |
-| src/pages/Register.tsx | 重写：三角色页签 + 纯前端模拟 |
-| src/pages/Login.tsx | 去掉 Worker 登录请求 |
-| src/pages/Chat.tsx | 删呼叫按钮 / 删输入框 / 常开监听 / 自动播报 / 语音打断 |
-| src/pages/FamilyDashboard.tsx | 对话回放 → 五分类评估面板 |
-| src/pages/VillageBoard.tsx | 单人详情新增五分类评估面板 |
-| src/components/ChatBubble.tsx | 移除播放按钮 |
-| src/components/StatusBar.tsx | 免按键语音状态提示 |
-| src/components/CallFamilyModal.tsx、MicButton.tsx | **已删除** |
+| `src/config.ts` | 后端地址解析：env → `?api=` 运行时覆盖 → 同源 → 离线 |
+| `src/lib/workerAuth.ts` | 新增 `ensureDemoSession()` 静默会话（demo-login，必要时先 register） |
+| `src/lib/api.ts` | 后端优先 + 失败回退 demoStore；后端预警脱敏折成五分类；`/api/assessment` 本地现算 |
+| `src/components/RoleSwitch.tsx` | 服务端不能切号时退回本地切换，路演永远可切 |
+| `src/lib/assessment.ts` | **新增**：五分类结构化评估（不使用任何原文字段） |
+| `src/components/AssessmentPanel.tsx`、`AlertRiskTag.tsx` | **新增**：评估面板、预警统一展示口径 |
+| `src/pages/*` | 注册/登录纯前端模拟；家属端 / 村协端改为五分类评估 + 预警零原话；老人端移除「一键呼叫家人」 |
+| `src/types.ts` | `AlertItem` 用 `category` 取代 `keyword/summary` |
+| `src/lib/demoStore.ts` | 本地演示数据层（离线兜底），全部结构化、无原话 |

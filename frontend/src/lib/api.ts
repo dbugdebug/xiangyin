@@ -10,9 +10,10 @@
  * 将来若需接真实后端，只需把下方 mockRoute 换成 fetch，**页面代码零改动**。
  */
 import * as store from './demoStore'
-import { asRiskCategory, buildAssessment } from './assessment'
-import { getValidAuthSession, isWorkerConfigured } from './workerAuth'
+import { asRiskCategory, buildAssessment, categoryFromSignal } from './assessment'
+import { isWorkerConfigured, ensureDemoSession } from './workerAuth'
 import { VITE_WORKER_API_URL } from '../config'
+import type { AlertItem, DailyStat, Elder } from '../types'
 
 // 类型统一出口：页面原先从 '../lib/api' 引入这些类型，这里原样再导出，页面代码零改动
 export type {
@@ -157,8 +158,8 @@ function mockRoute<R>(method: 'GET' | 'POST', path: string, body?: unknown): Pro
 /* ---------------------------------------------------------------- 统一出口 */
 
 /**
- * Worker URL 配置存在时请求 Cloudflare Worker；线上失败会报错，不冒充为演示数据。
- * 未配置 Supabase 时继续使用本地 demoStore，便于离线预览。
+ * 后端地址（config 里已解析：VITE_WORKER_API_URL → ?api= 运行时覆盖 → 同源 → 空）。
+ * 为空时 isWorkerConfigured() = false，全部走本地演示数据层 demoStore，画面完全一致。
  */
 export const API_BASE = VITE_WORKER_API_URL.replace(/\/+$/, '')
 let backendDownAt = 0 // 0 = 后端在线（或从未探测失败）
@@ -167,17 +168,64 @@ function backendDown(): boolean {
   return backendDownAt > 0 && Date.now() - backendDownAt < 30_000
 }
 
+/**
+ * 后端预警 → 前端 AlertItem。
+ * 后端 `alerts` 表里的 keyword / summary **一律丢弃**，只在本地折算成五个标准分类之一，
+ * 保证「子端 / 社区端」拿到的永远只有 `风险类型 + 状态`。
+ */
+function normalizeAlert(raw: Record<string, unknown>): AlertItem {
+  const category = raw.category
+    ? asRiskCategory(raw.category)
+    : categoryFromSignal(`${String(raw.keyword ?? '')} ${String(raw.summary ?? '')}`)
+  const item: AlertItem = {
+    id: Number(raw.id),
+    elder_id: Number(raw.elder_id),
+    elder_name: String(raw.elder_name ?? ''),
+    created_at: String(raw.created_at ?? ''),
+    category,
+    status: raw.status === '已处理' ? '已处理' : '待处理',
+    severity: raw.severity === 'high' ? 'high' : 'mid',
+  }
+  if (raw.method) item.method = String(raw.method)
+  if (raw.disposal) item.disposal = raw.disposal as AlertItem['disposal']
+  return item
+}
+
+/** 后端返回 → 前端类型（目前只有预警列表需要脱敏折算） */
+function normalizeGet<R>(path: string, data: R): R {
+  if (path === '/api/alerts' && Array.isArray(data)) {
+    return (data as unknown as Record<string, unknown>[]).map(normalizeAlert) as unknown as R
+  }
+  return data
+}
+
+/** 前端请求体 → 后端契约请求体（老人原话/分类名都不出端，只写分类标签） */
+function remoteBody(path: string, body?: unknown): unknown {
+  const p = path.split('?')[0]
+  const b = (body ?? {}) as Record<string, unknown>
+  if (p === '/api/risk-report') {
+    const category = asRiskCategory(b.category)
+    // 后端表结构仍是 keyword/summary 两列：只写入标准分类文案，不写任何老人原话
+    return { elder_id: b.elder_id, keyword: category, summary: `AI 语义筛查命中：${category}` }
+  }
+  return body
+}
+
 async function tryBackend<R>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<R | undefined> {
   if (!isWorkerConfigured()) return undefined
   if (backendDown()) return undefined
   try {
-    const session = await getValidAuthSession()
-    const makeRequest = (token?: string) => fetch(`${API_BASE}${path}`, {
+    // 后端 /api/** 需要 Bearer：内部静默换取演示账号会话（不参与登录页 UI）
+    const session = await ensureDemoSession()
+    if (!session?.access_token) return undefined
+    const res = await fetch(`${API_BASE}${path}`, {
       method,
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
+      },
       body: method === 'POST' ? JSON.stringify(body ?? {}) : undefined,
     })
-    const res = await makeRequest(session?.access_token)
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = (await res.json()) as Record<string, unknown>
     // 契约约定：错误为 HTTP 200 + { ok:false, message }
@@ -185,30 +233,49 @@ async function tryBackend<R>(method: 'GET' | 'POST', path: string, body?: unknow
     backendDownAt = 0
     return data as R
   } catch {
-    if (backendDownAt === 0) console.warn(`[api] Workers API 请求失败：${method} ${path}`)
+    if (backendDownAt === 0) console.warn(`[api] 后端请求失败，本次演示回退本地数据：${method} ${path}`)
     backendDownAt = backendDownAt || Date.now()
     return undefined
   }
 }
 
+/**
+ * 结构化风险评估（五分类）：后端没有 /api/assessment 路由时，
+ * 用后端的老人档案 + 近 7 天统计 + 预警分类，在前端按同一口径现算。
+ */
+async function remoteAssessment(id: number) {
+  const detail = await tryBackend<{ elder?: Elder; daily_stats?: DailyStat[] } | null>(
+    'GET',
+    `/api/elders/${id}`,
+  )
+  if (!detail?.elder) return null
+  const rawAlerts = (await tryBackend<Record<string, unknown>[]>('GET', `/api/alerts?elder_id=${id}`)) ?? []
+  return buildAssessment(detail.elder, detail.daily_stats ?? [], rawAlerts.map(normalizeAlert))
+}
+
 export const api = {
   get: async <R>(path: string) => {
+    const [p, rawQuery] = path.split('?')
+    if (p === '/api/assessment') {
+      const id = Number(new URLSearchParams(rawQuery ?? '').get('elder_id')) || 1
+      const remote = await remoteAssessment(id)
+      if (remote) return remote as R
+      return mockRoute<R>('GET', path)
+    }
     const remote = await tryBackend<R>('GET', path)
-    if (remote !== undefined) return remote
-    if (isWorkerConfigured()) throw new Error('Workers API 请求失败，请检查登录状态和 Worker 部署')
+    if (remote !== undefined) return normalizeGet(p, remote)
     return mockRoute<R>('GET', path)
   },
   post: async <R>(path: string, body?: unknown) => {
-    const remote = await tryBackend<R>('POST', path, body)
+    const remote = await tryBackend<R>('POST', path, remoteBody(path, body))
     if (remote !== undefined) return remote
-    if (isWorkerConfigured()) throw new Error('Workers API 请求失败，请检查登录状态和 Worker 部署')
     return mockRoute<R>('POST', path, body)
   },
 }
 
 export async function apiRequest<R>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<R> {
-  const remote = await tryBackend<R>(method, path, body)
-  if (remote === undefined) throw new Error('Workers API 请求失败，请检查登录状态和 Worker 部署')
+  const remote = await tryBackend<R>(method, path, remoteBody(path, body))
+  if (remote === undefined) throw new Error('后端不可用，已回退本地演示数据')
   return remote
 }
 
